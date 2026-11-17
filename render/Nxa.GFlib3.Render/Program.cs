@@ -32,6 +32,8 @@ catch (Exception ex) when (ex is InvalidOperationException or DirectoryNotFoundE
     return 1;
 }
 
+SceneCatalog catalog = SceneCatalog.Discover(dumpRoot);
+
 FieldScene scene;
 try
 {
@@ -47,6 +49,11 @@ catch (Exception ex) when (ex is IOException
 {
     Console.Error.WriteLine($"error: failed to load area: {ex.Message}");
     return 1;
+}
+
+if (catalog.DiscoveryWarning is not null)
+{
+    scene.Messages.Add($"warning: {catalog.DiscoveryWarning}");
 }
 
 foreach (string message in scene.Messages)
@@ -96,7 +103,7 @@ if (options.LoadCheck)
 
 try
 {
-    using var app = new RenderApp(options, scene);
+    using var app = new RenderApp(options, scene, catalog);
     app.Run();
 }
 catch (Exception ex) when (ex is IOException
@@ -129,6 +136,8 @@ static void PrintHelp()
           --frames <n>        Render n frames, then exit
           --screenshot <path> Save the window as a 24-bit BMP
           --screenshot-delay <s> Wait this many seconds before the screenshot
+          --reload-area <name> Diagnostic: switch to this area after the first frame
+          --reload-model <name> Model pack for --reload-area (default: matching pack)
           --no-plants         Hide vegetation
           --no-room           Hide room geometry
           --no-terrain        Hide the heightmap terrain

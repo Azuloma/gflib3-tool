@@ -15,19 +15,25 @@ namespace Nxa.GFlib3.Render.Ui;
 public sealed class EditorShell
 {
     private readonly Localizer _text;
-    private readonly FieldScene _scene;
+    private readonly SceneCatalog _catalog;
 
+    private FieldScene _scene;
     private bool _showAbout;
     private bool _layoutPending;
     private uint _dockspaceId;
     private int _selectedRoomMesh = -1;
     private int _selectedPlant = -1;
+    private int _areaIndex;
+    private int _modelIndex;
+    private SceneSelection? _pendingLoad;
 
-    public EditorShell(Localizer text, FieldScene scene, bool buildDefaultLayout)
+    public EditorShell(Localizer text, FieldScene scene, SceneCatalog catalog, bool buildDefaultLayout)
     {
         _text = text;
         _scene = scene;
+        _catalog = catalog;
         _layoutPending = buildDefaultLayout;
+        SyncPackSelection();
     }
 
     public bool ExitRequested { get; private set; }
@@ -35,6 +41,28 @@ public sealed class EditorShell
     public bool ResetCameraRequested { get; private set; }
 
     public bool FrameRequested { get; private set; }
+
+    public SceneSelection? TakePendingLoad()
+    {
+        SceneSelection? request = _pendingLoad;
+        _pendingLoad = null;
+        return request;
+    }
+
+    public void RequestLoad(string area, string modelPack)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(area);
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelPack);
+        _pendingLoad = new SceneSelection(area, modelPack);
+    }
+
+    public void SetScene(FieldScene scene)
+    {
+        _scene = scene;
+        _selectedRoomMesh = -1;
+        _selectedPlant = -1;
+        SyncPackSelection();
+    }
 
     public void Draw(UiFrameContext frame)
     {
@@ -255,8 +283,8 @@ public sealed class EditorShell
             return;
         }
 
-        DrawKeyValue(_text.T("project.area"), _scene.AreaName);
-        DrawKeyValue(_text.T("project.modelPack"), _scene.ModelPackName);
+        DrawPackSelectors();
+        ImGui.Separator();
         DrawKeyValue(_text.T("project.model"), _scene.RoomModelName);
         DrawKeyValue(_text.T("project.dump"), _scene.DumpRoot);
         ImGui.Separator();
@@ -278,6 +306,88 @@ public sealed class EditorShell
         }
 
         ImGui.End();
+    }
+
+    private void DrawPackSelectors()
+    {
+        bool hasAreas = _catalog.Areas.Count > 0;
+        bool hasModels = _catalog.ModelPacks.Count > 0;
+
+        ImGui.TextDisabled(_text.T("project.area"));
+        ImGui.BeginDisabled(!hasAreas);
+        ImGui.SetNextItemWidth(-1f);
+        if (hasAreas && ImGui.BeginCombo("##areaPack", _catalog.Areas[_areaIndex]))
+        {
+            for (int i = 0; i < _catalog.Areas.Count; i++)
+            {
+                string area = _catalog.Areas[i];
+                bool selected = i == _areaIndex;
+                if (ImGui.Selectable(area, selected) && i != _areaIndex)
+                {
+                    _areaIndex = i;
+                    SelectMatchingModel(area);
+                }
+
+                if (selected)
+                {
+                    ImGui.SetItemDefaultFocus();
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        ImGui.EndDisabled();
+
+        ImGui.TextDisabled(_text.T("project.modelPack"));
+        ImGui.BeginDisabled(!hasModels);
+        ImGui.SetNextItemWidth(-1f);
+        if (hasModels && ImGui.BeginCombo("##modelPack", _catalog.ModelPacks[_modelIndex]))
+        {
+            for (int i = 0; i < _catalog.ModelPacks.Count; i++)
+            {
+                bool selected = i == _modelIndex;
+                if (ImGui.Selectable(_catalog.ModelPacks[i], selected))
+                {
+                    _modelIndex = i;
+                }
+
+                if (selected)
+                {
+                    ImGui.SetItemDefaultFocus();
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        ImGui.EndDisabled();
+
+        if (!hasAreas || !hasModels)
+        {
+            ImGui.TextDisabled(_text.T("project.noPacks"));
+            return;
+        }
+
+        if (ImGui.Button(_text.T("project.load"), new Vector2(-1f, 0f)))
+        {
+            RequestLoad(_catalog.Areas[_areaIndex], _catalog.ModelPacks[_modelIndex]);
+        }
+    }
+
+    private void SelectMatchingModel(string area)
+    {
+        int match = _catalog.IndexOfModel(area);
+        if (match >= 0)
+        {
+            _modelIndex = match;
+        }
+    }
+
+    private void SyncPackSelection()
+    {
+        _areaIndex = Math.Max(_catalog.IndexOfArea(_scene.AreaName), 0);
+        _modelIndex = Math.Max(_catalog.IndexOfModel(_scene.ModelPackName), 0);
     }
 
     private void DrawInspector()
@@ -592,6 +702,9 @@ public sealed class EditorShell
 
     private static string Format(Vector3f value) => $"{value.X:F2}, {value.Y:F2}, {value.Z:F2}";
 }
+
+/// <summary>An area/model pack pair requested for loading.</summary>
+public sealed record SceneSelection(string Area, string ModelPack);
 
 /// <summary>Per-frame inputs and outputs shared between the app and the shell.</summary>
 public sealed class UiFrameContext

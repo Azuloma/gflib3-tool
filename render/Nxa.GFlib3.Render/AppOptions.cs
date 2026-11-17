@@ -29,6 +29,12 @@ public sealed class AppOptions
 
     public double ScreenshotDelaySeconds { get; private set; }
 
+    /// <summary>Diagnostic: switch to this area after the first frame.</summary>
+    public string? ReloadArea { get; private set; }
+
+    /// <summary>Diagnostic: model pack for <see cref="ReloadArea"/>; defaults to the matching pack.</summary>
+    public string? ReloadModel { get; private set; }
+
     public bool NoPlants { get; private set; }
 
     public bool NoTextures { get; private set; }
@@ -123,6 +129,12 @@ public sealed class AppOptions
 
                     options.TerrainTileScale = tileScale;
                     break;
+                case "--reload-area" when i + 1 < args.Length:
+                    options.ReloadArea = args[++i];
+                    break;
+                case "--reload-model" when i + 1 < args.Length:
+                    options.ReloadModel = args[++i];
+                    break;
                 case "--screenshot" when i + 1 < args.Length:
                     options.ScreenshotPath = args[++i];
                     break;
@@ -140,6 +152,21 @@ public sealed class AppOptions
                 default:
                     throw new ArgumentException($"Unknown argument '{arg}'.");
             }
+        }
+
+        if (options.ReloadArea is not null && string.IsNullOrWhiteSpace(options.ReloadArea))
+        {
+            throw new ArgumentException("--reload-area requires a pack name.");
+        }
+
+        if (options.ReloadModel is not null && string.IsNullOrWhiteSpace(options.ReloadModel))
+        {
+            throw new ArgumentException("--reload-model requires a pack name.");
+        }
+
+        if (options.ReloadModel is not null && options.ReloadArea is null)
+        {
+            throw new ArgumentException("--reload-model requires --reload-area.");
         }
 
         return options;

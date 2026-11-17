@@ -3,8 +3,9 @@
 Status: Stage 4b. The project loads one field area, renders the heightmap
 terrain, one room model with BNTX base-color textures, scene-table placements
 from `resident_release`, and vegetation instances from the terrain manifest. The
-UI is a dockable Dear ImGui shell with English/Japanese labels. Editing controls
-are visible but disabled.
+area and model packs can be switched at runtime from the Project panel. The UI is
+a dockable Dear ImGui shell with English/Japanese labels. Editing controls are
+visible but disabled.
 
 ## Project
 
@@ -37,6 +38,8 @@ Options:
 | `--frames <n>` | Render `n` frames, then exit |
 | `--screenshot <path>` | Capture the whole window as a 24-bit BMP |
 | `--screenshot-delay <s>` | Wait before the screenshot, then exit |
+| `--reload-area <name>` | Diagnostic: run the runtime switch to this area after the first frame |
+| `--reload-model <name>` | Model pack for `--reload-area`; defaults to the matching pack |
 | `--terrain-stride <n>` | Sample every nth heightmap row/column (default 1) |
 | `--terrain-tile-scale <n>` | Multiply `SplatST` terrain tiling (default 64) |
 | `--no-plants`, `--no-room`, `--no-terrain`, `--no-scene`, `--no-textures` | Diagnostic rendering toggles |
@@ -83,6 +86,23 @@ The terrain pack's logical folder is
 `bin/field/terrain/<area>/terrain/`; room packs use `bin/field/model/pack/`.
 Folder hashes include the trailing slash.
 
+## Runtime area switching
+
+At startup `SceneCatalog` lists `*.gfpak` names from
+`RomFS/bin/archive/field/terrain` and `RomFS/bin/archive/field/model/pack`, sorted
+ordinal-ignore-case. If enumeration fails, the catalog keeps whatever was found
+and the reason is reported as a `warning:` line in the Console. The Project panel
+exposes one combo per list and a Load button. Choosing an area also selects the
+model pack with the same name when one exists; both selections remain independent
+afterwards.
+
+Load runs synchronously on the render thread from the UI request queue. It builds
+a complete `FieldScene`, then creates a new `SceneRenderer`, disposes the previous
+renderer, replaces the scene, reframes the camera, and reports the loaded area in
+the status bar. A failed load keeps the current scene and renderer, appends an
+`error:` line to the Console, and shows `Load failed: <area>`. The UI is
+unresponsive during the load (roughly 4 s for area 04 on the test machine).
+
 ## Rendering
 
 - One shader: transform, vertex color, base-color texture, and a directional
@@ -107,7 +127,9 @@ Folder hashes include the trailing slash.
 
 The host window contains a menu bar, an icon toolbar, and a dockspace. Panels:
 Hierarchy, Scene, Inspector, Project, and Console (Console hosts Validation and
-History tabs). A 22px status bar runs below the dock area.
+History tabs). A 22px status bar runs below the dock area. The Project panel
+contains the Area pack and Model pack selectors with a Load button above the
+current model, counts, and terrain UV slider.
 
 The default Unity-style layout is built programmatically: left 20% (Hierarchy
 45% / Project 55%), center 58% (Scene 68% / Console 32%), right 22% Inspector.
@@ -125,7 +147,7 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 
 - Only the selected model pack is searched for scene models. Areas whose models
   live in another pack (for example an interior sub-pack) leave those scenes
-  unplaced; there is no runtime area/model selector yet.
+  unplaced until the matching model pack is loaded.
 - Scene-name to model matching is heuristic: it strips `areaNN_`, `sNN_`,
   trailing `_NN`, and `bgparts_` prefixes. Background structures in
   `ha_area00_s02` and `ha_area04` resolve; other packs are unverified.

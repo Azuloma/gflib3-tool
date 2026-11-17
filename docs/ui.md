@@ -13,9 +13,10 @@ Phase 1 establishes the visual foundation only:
 - Icon toolbar.
 - Bottom status bar.
 
-Panel content is still the Stage 4 read-only presentation. The Project browser,
-component-style Inspector, hierarchy tree, console toolbar, and selection model
-belong to Phase 2.
+Panel content is still the Stage 4 read-only presentation, with one addition:
+the Project panel's Area pack and Model pack selectors can reload the scene at
+runtime. The full asset browser, component-style Inspector, hierarchy tree,
+console toolbar, and selection model belong to Phase 2.
 
 ## Layout
 

@@ -23,9 +23,11 @@ namespace Nxa.GFlib3.Render;
 internal sealed class RenderApp : IDisposable
 {
     private readonly AppOptions _options;
-    private readonly FieldScene _scene;
+    private readonly SceneCatalog _catalog;
     private readonly FreeFlyCamera _camera = new();
     private readonly Localizer _text = new();
+
+    private FieldScene _scene;
 
     private IWindow? _window;
     private IInputContext? _input;
@@ -41,10 +43,11 @@ internal sealed class RenderApp : IDisposable
     private IntPtr _layoutIniPath;
     private string _status = string.Empty;
 
-    public RenderApp(AppOptions options, FieldScene scene)
+    public RenderApp(AppOptions options, FieldScene scene, SceneCatalog catalog)
     {
         _options = options;
         _scene = scene;
+        _catalog = catalog;
         _text.SetLanguage(options.Language);
         _status = _text.T("app.status.ready");
     }
@@ -115,7 +118,7 @@ internal sealed class RenderApp : IDisposable
             !_options.NoTerrain,
             !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
-        _shell = new EditorShell(_text, _scene, !hasSavedLayout);
+        _shell = new EditorShell(_text, _scene, _catalog, !hasSavedLayout);
 
         EditorTheme.Apply();
         FrameCamera();
@@ -138,6 +141,11 @@ internal sealed class RenderApp : IDisposable
 
         _imgui.Update((float)delta);
 
+        if (_options.ReloadArea is not null && _frame == 2)
+        {
+            _shell.RequestLoad(_options.ReloadArea, ResolveReloadModel(_options.ReloadArea));
+        }
+
         var frame = new UiFrameContext
         {
             Camera = _camera,
@@ -147,6 +155,13 @@ internal sealed class RenderApp : IDisposable
             Status = _status,
         };
         _shell.Draw(frame);
+
+        bool reloadAttempted = false;
+        if (_shell.TakePendingLoad() is SceneSelection request)
+        {
+            ReloadScene(request);
+            reloadAttempted = true;
+        }
 
         if (_shell.ExitRequested)
         {
@@ -168,7 +183,7 @@ internal sealed class RenderApp : IDisposable
         bool screenshotDue = _options.ScreenshotDelaySeconds > 0
             ? _clock.Elapsed.TotalSeconds >= _options.ScreenshotDelaySeconds
             : _frame >= Math.Max(_options.SmokeFrames, 2);
-        if (_options.ScreenshotPath is not null && !_screenshotWritten && screenshotDue)
+        if (!reloadAttempted && _options.ScreenshotPath is not null && !_screenshotWritten && screenshotDue)
         {
             SaveScreenshot(_options.ScreenshotPath);
             _screenshotWritten = true;
@@ -178,7 +193,7 @@ internal sealed class RenderApp : IDisposable
             }
         }
 
-        if (_options.SmokeFrames > 0 && _frame >= _options.SmokeFrames)
+        if (!reloadAttempted && _options.SmokeFrames > 0 && _frame >= _options.SmokeFrames)
         {
             _window.Close();
         }
@@ -271,6 +286,64 @@ internal sealed class RenderApp : IDisposable
     private void FrameSelection()
     {
         FrameCamera();
+    }
+
+    private string ResolveReloadModel(string area)
+    {
+        if (_options.ReloadModel is not null)
+        {
+            return _options.ReloadModel;
+        }
+
+        int index = _catalog.IndexOfModel(area);
+        return index >= 0 ? _catalog.ModelPacks[index] : _scene.ModelPackName;
+    }
+
+    private void ReloadScene(SceneSelection request)
+    {
+        _status = _text.T("app.status.loading");
+        try
+        {
+            FieldScene scene = FieldSceneLoader.Load(
+                _scene.DumpRoot,
+                request.Area,
+                request.ModelPack,
+                _options.MeshFilter,
+                _options.TerrainStride,
+                _options.TerrainTileScale);
+            var renderer = new SceneRenderer(
+                _gl!,
+                scene,
+                !_options.NoPlants,
+                !_options.NoTextures,
+                !_options.NoRoom,
+                !_options.NoTerrain,
+                !_options.NoScene);
+
+            _renderer?.Dispose();
+            _renderer = renderer;
+            _scene = scene;
+            _shell!.SetScene(scene);
+            FrameCamera();
+            _status = $"{_text.T("app.status.loaded")}: {request.Area}";
+            Console.WriteLine(
+                $"switched to {request.Area} with {request.ModelPack}: "
+                + $"{scene.RoomMeshes.Count} room parts, {scene.PlacedMeshes.Count} placed parts, "
+                + $"{scene.Instances.Count} instances.");
+        }
+        catch (Exception ex) when (ex is IOException
+            or InvalidDataException
+            or NotSupportedException
+            or DllNotFoundException
+            or InvalidOperationException
+            or UnauthorizedAccessException
+            or ArgumentException)
+        {
+            _scene.Messages.Add(
+                $"error: failed to load {request.Area} with {request.ModelPack}: {ex.Message}");
+            _status = $"{_text.T("app.status.loadError")}: {request.Area}";
+            Console.Error.WriteLine(_scene.Messages[^1]);
+        }
     }
 
     private void SaveScreenshot(string path)
