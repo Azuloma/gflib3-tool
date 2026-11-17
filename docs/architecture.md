@@ -66,3 +66,5 @@ All native output stays under `artifacts/`, which is gitignored.
   NXAevora copyright line.
 - Text files are UTF-8 with LF endings.
 - A format is documented in `docs/` before its implementation in `core/`.
+- Code quality, ownership, error-context, and comment rules are defined in
+  [code-quality.md](code-quality.md).

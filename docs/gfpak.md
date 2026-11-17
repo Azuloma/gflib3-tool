@@ -32,7 +32,16 @@ file table `0x388`, path hashes `0x30`, folder hash `0x148`.
 
 ## Path-hash table (`ptrHashPaths`)
 
-`fileCount` entries of `u64`, each the FNV-1a 64-bit hash of a file's full path.
+`fileCount` entries of `u64`, each the FNV-1a 64-bit hash of a file's full logical
+path. Paths use the `bin/` root and forward slashes, for example:
+
+```text
+bin/field/model/pack/room_area00_s07.trmdl
+bin/field/terrain/ha_area00/terrain/area00_0_0_plants_tree02_X7Z9_d0.trins
+```
+
+Verified by matching `ha_area00_s07` entries (TRMDL/TRMSH/TRMBF/TRMTR/TRSKL) and
+all 25 `.trins` entries in `terrain/ha_area00.gfpak`.
 
 ## Folder hash tables (`ptrHashFolders[i]`)
 
@@ -47,8 +56,10 @@ fileCount * {
 }
 ```
 
-FNV-1a 64-bit uses offset basis `0xCBF29CE484222325` and prime
-`0x100000001B3`. Character case/normalization is not yet determined.
+FNV-1a 64-bit uses the Game Freak/pkNX offset basis
+`0xCBF29CE484222645` (not the standard `0xCBF29CE484222325`) and prime
+`0x100000001B3`. Case/normalization has not been tested beyond the lowercase
+paths observed in the dump.
 
 ## File table (`ptrFileTable`)
 
@@ -94,7 +105,8 @@ some entries are Trinity-style tables (e.g. `24` bytes beginning `0C 00 00 00`).
 
 ## Open questions
 
-- How are full-path hashes derived (root prefix, separators, case)?
+- Full path names for most entries are still unresolved; the hash scheme is
+  verified but the path text must be known or reconstructed.
 - What does `level` mean, and can it vary?
 - SARC layout of entries, and how names inside SARC relate to gfpak hashes.
-- Trinity table formats (`trmdl`, `trmsh`, `trmtr`, `trmbf`, `trskl`).
+- Gfpak writing/compression for RomFS overlay output (Kraken encoder unresolved).

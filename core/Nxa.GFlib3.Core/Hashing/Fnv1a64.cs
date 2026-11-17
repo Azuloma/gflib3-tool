@@ -8,7 +8,8 @@ namespace Nxa.GFlib3.Core.Hashing;
 /// <summary>FNV-1a 64-bit hashing as used by GFLXPACK path tables.</summary>
 public static class Fnv1a64
 {
-    public const ulong OffsetBasis = 0xCBF29CE484222325;
+    // Game Freak/pkNX variant: the offset basis differs from standard FNV-1a.
+    public const ulong OffsetBasis = 0xCBF29CE484222645;
     public const ulong Prime = 0x100000001B3;
 
     public static ulong Hash(ReadOnlySpan<byte> data)

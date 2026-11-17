@@ -8,14 +8,16 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | Document | Contents |
 | --- | --- |
 | [architecture.md](architecture.md) | Solution layout, project responsibilities, build and native plan |
+| [code-quality.md](code-quality.md) | Ownership, errors, constants, comments, and change-hygiene rules |
 | [gfpak.md](gfpak.md) | `GFLXPACK` container format (verified against the dump) |
 | [sarc.md](sarc.md) | SARC payloads nested inside gfpak entries |
 | [trinity.md](trinity.md) | Trinity FlatBuffer model formats (trmdl/trmsh/trmbf/trmtr/trskl) |
+| [placement.md](placement.md) | Field object placement: terrain manifests, `.trins`, SRT instance buffers |
 
 ## Related files
 
-- `WORK_PLAN.md` (repository root) — current stage, decisions, next actions.
-- `OLD-WORK_PLAN.md` (repository root) — dated history.
+- `.agents/WORK_PLAN.md` — current stage, decisions, next actions.
+- `.agents/OLD-WORK_PLAN.md` — dated history.
 - `analysis/` — scratch: inventory scripts, extracted data, RE notes.
 
 When this folder grows past a handful of documents, group them into

@@ -13,3 +13,10 @@ public readonly record struct Vector4f(float X, float Y, float Z, float W);
 public readonly record struct Sphere(float X, float Y, float Z, float Radius);
 
 public readonly record struct BoundingBox(Vector3f Min, Vector3f Max);
+
+/// <summary>A 4×4 matrix with rows stored in order (row-major).</summary>
+public readonly record struct Matrix4x4RowMajor(
+    Vector4f Row0,
+    Vector4f Row1,
+    Vector4f Row2,
+    Vector4f Row3);
