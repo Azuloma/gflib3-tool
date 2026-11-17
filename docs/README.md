@@ -15,6 +15,7 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [placement.md](placement.md) | Field object placement: terrain manifests, `.trins`, SRT instance buffers |
 | [bntx.md](bntx.md) | BNTX texture containers, formats, block-linear layout, decoding |
 | [renderer.md](renderer.md) | Field viewer: loading, rendering, UI shell, controls, limitations |
+| [scene-layout.md](scene-layout.md) | Resident scene/visibility tables and background model placement (hypothesis) |
 
 ## Related files
 
