@@ -231,6 +231,9 @@ two except the 1025² terrain maps. Mip counts range from 1 to 12. `layout`
 4. Decode BC1–BC7 with BCnEncoder.Net (MIT/Unlicense); decode uncompressed
    formats in Core.
 5. Apply the channel sources only when they differ from the identity mapping.
+6. For 2D array textures, decode one slice at a time
+   (`BntxTextureDecoder.Decode(texture, mip, slice)`). Single-mip slices split
+   `image_size`; the terrain `SplatAlpha` array is two 1024² BC7 slices.
 
 sRGB is preserved as a format flag; the renderer selects an sRGB internal
 format. BC5 normal maps store X/Y and reconstruct Z in the shader.

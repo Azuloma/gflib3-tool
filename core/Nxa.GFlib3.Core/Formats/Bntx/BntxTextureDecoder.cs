@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 the NXAevora Projects
 
 using System.Buffers.Binary;
@@ -12,15 +12,22 @@ public static class BntxTextureDecoder
 {
     private const long MaxPixelCount = 64L * 1024 * 1024;
 
-    public static BntxImage Decode(BntxTexture texture, int mip)
+    public static BntxImage Decode(BntxTexture texture, int mip, int arrayIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
-        if (texture.Depth != 1 || texture.ArrayCount != 1)
+        if (texture.Depth != 1)
         {
             throw new NotSupportedException(
-                $"BNTX '{texture.Name}' has depth {texture.Depth} / array count {texture.ArrayCount}; " +
-                "only 2D single-surface textures are supported.");
+                $"BNTX '{texture.Name}' has depth {texture.Depth}; only 2D textures are supported.");
+        }
+
+        if ((uint)arrayIndex >= texture.ArrayCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(arrayIndex),
+                arrayIndex,
+                $"BNTX '{texture.Name}' has {texture.ArrayCount} array slices.");
         }
 
         if (texture.SampleCount != 1)
@@ -44,11 +51,50 @@ public static class BntxTextureDecoder
         int tightSize = checked(blocksWide * blocksHigh * layout.BytesPerBlock);
         byte[] tight = new byte[tightSize];
 
-        ExpandToTight(texture, mip, tight, blocksWide, blocksHigh, layout.BytesPerBlock, layout);
+        long sliceOffset = GetArraySliceOffset(texture, mip, arrayIndex);
+        ExpandToTight(texture, mip, tight, blocksWide, blocksHigh, layout.BytesPerBlock, layout, sliceOffset);
 
         return layout.IsCompressed
             ? DecodeBlockCompressed(texture, tight, width, height, layout)
             : DecodeUncompressed(texture, tight, width, height, layout);
+    }
+
+    /// <summary>
+    /// Array slices share a mip payload. Mip 0 slices split <see cref="BntxTexture.ImageSize"/>;
+    /// multi-mip arrays fall back to the mip payload divided by the array count.
+    /// </summary>
+    private static long GetArraySliceOffset(BntxTexture texture, int mip, int arrayIndex)
+    {
+        if (arrayIndex == 0)
+        {
+            return 0;
+        }
+
+        long perSlice;
+        if (texture.MipCount == 1)
+        {
+            if (texture.ImageSize % texture.ArrayCount != 0)
+            {
+                throw new InvalidDataException(
+                    $"BNTX '{texture.Name}' image size {texture.ImageSize} is not divisible " +
+                    $"by array count {texture.ArrayCount}.");
+            }
+
+            perSlice = texture.ImageSize / texture.ArrayCount;
+        }
+        else
+        {
+            perSlice = texture.GetMipData(mip).Length / texture.ArrayCount;
+        }
+
+        long offset = checked(perSlice * arrayIndex);
+        if (offset >= texture.GetMipData(mip).Length)
+        {
+            throw new InvalidDataException(
+                $"BNTX '{texture.Name}' array slice {arrayIndex} offset 0x{offset:X} is out of range.");
+        }
+
+        return offset;
     }
 
     /// <summary>Decodes an <c>R16_FLOAT</c> or <c>R32_FLOAT</c> mip to row-major values.</summary>
@@ -91,7 +137,7 @@ public static class BntxTextureDecoder
         int blocksHigh = (height + layout.BlockHeight - 1) / layout.BlockHeight;
         int tightSize = checked(blocksWide * blocksHigh * layout.BytesPerBlock);
         byte[] tight = new byte[tightSize];
-        ExpandToTight(texture, mip, tight, blocksWide, blocksHigh, layout.BytesPerBlock, layout);
+        ExpandToTight(texture, mip, tight, blocksWide, blocksHigh, layout.BytesPerBlock, layout, 0);
 
         var values = new float[pixelCount];
         for (int i = 0; i < values.Length; i++)
@@ -111,7 +157,8 @@ public static class BntxTextureDecoder
         int blocksWide,
         int blocksHigh,
         int bytesPerBlock,
-        BntxFormatLayout layout)
+        BntxFormatLayout layout,
+        long sliceOffset)
     {
         ReadOnlySpan<byte> source = texture.GetMipData(mip).Span;
         int pitch = TegraBlockLinear.GetPitch(blocksWide, bytesPerBlock, texture.TileMode);
@@ -120,9 +167,9 @@ public static class BntxTextureDecoder
         {
             for (int blockX = 0; blockX < blocksWide; blockX++)
             {
-                long sourceOffset = texture.TileMode == 0
+                long sourceOffset = sliceOffset + (texture.TileMode == 0
                     ? TegraBlockLinear.GetBlockOffset(blockX, blockY, blocksWide, bytesPerBlock, texture.BlockHeightLog2)
-                    : ((long)blockY * pitch) + ((long)blockX * bytesPerBlock);
+                    : ((long)blockY * pitch) + ((long)blockX * bytesPerBlock));
 
                 if (sourceOffset < 0 || sourceOffset + bytesPerBlock > source.Length)
                 {

@@ -57,6 +57,7 @@ static void PrintUsage()
           trinity info <file> [--type <kind>]           Inspect a Trinity model file
                                                         (trmbf/trmsh/trmdl/trmtr/trskl)
           bntx info <file>                              Inspect a BNTX texture container
+          bntx stats <file>                             Report per-channel texture statistics
           bntx decode <file> <out.ppm> [--texture N] [--mip N]
                                                         Decode a texture to binary PPM
           terrain manifest <gfpak>                     Show the terrain manifest of a field pack

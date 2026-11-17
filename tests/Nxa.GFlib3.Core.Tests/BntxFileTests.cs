@@ -190,6 +190,43 @@ public sealed class BntxFileTests
             $"block-linear decode looks discontinuous (horizontal {horizontal}, vertical {vertical}).");
     }
 
+    [Fact]
+    public void DecodesSplatAlphaArraySlicesWhenDumpIsConfigured()
+    {
+        string? packPath = DumpPack("archive", "field", "terrain", "ha_area00.gfpak");
+        if (packPath is null)
+        {
+            return;
+        }
+
+        using var pack = GfpakArchive.Open(packPath);
+        BntxTexture texture = BntxFile.Parse(pack.ReadEntry(pack.Entries[37])).Textures[0];
+
+        Assert.Equal("area00_0_0_splat_alpha0", texture.Name);
+        Assert.Equal(BntxFormat.Bc7Unorm, texture.Format);
+        Assert.Equal(2u, texture.ArrayCount);
+        Assert.Equal(1024u, texture.Width);
+
+        BntxImage slice0 = BntxTextureDecoder.Decode(texture, 0, 0);
+        BntxImage slice1 = BntxTextureDecoder.Decode(texture, 0, 1);
+        Assert.Equal(1024, slice0.Width);
+        Assert.Equal(1024, slice1.Width);
+        Assert.True(MeanRed(slice0) > 50f);
+        Assert.True(MeanRed(slice1) < 50f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => BntxTextureDecoder.Decode(texture, 0, 2));
+    }
+
+    private static float MeanRed(BntxImage image)
+    {
+        long sum = 0;
+        for (int i = 0; i < image.Pixels.Length; i += 4)
+        {
+            sum += image.Pixels[i];
+        }
+
+        return (float)sum / (image.Pixels.Length / 4);
+    }
+
     private static byte[] BuildRgbaTexture(
         ushort tileMode,
         uint format = 0x0B01,

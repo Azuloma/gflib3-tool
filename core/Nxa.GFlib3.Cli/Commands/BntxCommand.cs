@@ -19,8 +19,9 @@ internal static class BntxCommand
         return args[0] switch
         {
             "info" when args.Length >= 2 => Info(args),
+            "stats" when args.Length == 2 => Stats(args[1]),
             "decode" when args.Length >= 3 => Decode(args),
-            "info" or "decode" => MissingArguments(),
+            "info" or "decode" or "stats" => MissingArguments(),
             _ => UnknownSubcommand(args[0]),
         };
     }
@@ -70,6 +71,89 @@ internal static class BntxCommand
         }
 
         return 0;
+    }
+
+    private static int Stats(string path)
+    {
+        BntxFile file;
+        try
+        {
+            file = BntxFile.Load(path);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"error: {path}: {ex.Message}");
+            return 1;
+        }
+
+        if (file.Textures.Count == 0)
+        {
+            Console.Error.WriteLine($"error: {path} has no textures.");
+            return 1;
+        }
+
+        BntxTexture texture = file.Textures[0];
+        Console.WriteLine(
+            $"{texture.Name} {texture.Width}x{texture.Height} {BntxFormats.GetName(texture.Format)} " +
+            $"array={texture.ArrayCount} mips={texture.MipCount}");
+
+        for (int slice = 0; slice < texture.ArrayCount; slice++)
+        {
+            BntxImage image;
+            try
+            {
+                image = BntxTextureDecoder.Decode(texture, 0, slice);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+            {
+                Console.Error.WriteLine($"error: {path} slice {slice}: {ex.Message}");
+                continue;
+            }
+
+            Console.WriteLine($" slice {slice}:");
+            PrintChannelStats(image);
+        }
+
+        return 0;
+    }
+
+    private static void PrintChannelStats(BntxImage image)
+    {
+        string[] names = ["r", "g", "b", "a"];
+        for (int channel = 0; channel < 4; channel++)
+        {
+            var histogram = new int[256];
+            long sum = 0;
+            byte min = 255;
+            byte max = 0;
+            for (int i = channel; i < image.Pixels.Length; i += 4)
+            {
+                byte value = image.Pixels[i];
+                histogram[value]++;
+                sum += value;
+                min = Math.Min(min, value);
+                max = Math.Max(max, value);
+            }
+
+            int count = image.Pixels.Length / 4;
+            Console.WriteLine(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"  {names[channel]}: min={min} max={max} mean={(double)sum / count:0.##}"));
+
+            var top = histogram
+                .Select((countValue, value) => (Value: value, Count: countValue))
+                .Where(item => item.Count > 0)
+                .OrderByDescending(item => item.Count)
+                .Take(6);
+            foreach ((int value, int occurrences) in top)
+            {
+                Console.WriteLine(
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"     {value,3}: {occurrences,9:N0} ({100.0 * occurrences / count:0.##}%)"));
+            }
+        }
     }
 
     private static int Decode(ReadOnlySpan<string> args)
