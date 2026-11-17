@@ -10,6 +10,7 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [architecture.md](architecture.md) | Solution layout, project responsibilities, build and native plan |
 | [gfpak.md](gfpak.md) | `GFLXPACK` container format (verified against the dump) |
 | [sarc.md](sarc.md) | SARC payloads nested inside gfpak entries |
+| [trinity.md](trinity.md) | Trinity FlatBuffer model formats (trmdl/trmsh/trmbf/trmtr/trskl) |
 
 ## Related files
 
