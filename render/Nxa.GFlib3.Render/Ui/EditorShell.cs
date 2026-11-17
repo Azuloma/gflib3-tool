@@ -14,21 +14,20 @@ namespace Nxa.GFlib3.Render.Ui;
 /// <summary>Unity-style dockable editor shell. Stage 4 is read-only.</summary>
 public sealed class EditorShell
 {
-    private static readonly Vector4 PanelColor = new(0.91f, 0.91f, 0.91f, 1f);
-    private static readonly Vector4 WarningColor = new(1f, 0.72f, 0.25f, 1f);
-    private static readonly Vector4 ErrorColor = new(1f, 0.40f, 0.40f, 1f);
-
     private readonly Localizer _text;
     private readonly FieldScene _scene;
 
     private bool _showAbout;
+    private bool _layoutPending;
+    private uint _dockspaceId;
     private int _selectedRoomMesh = -1;
     private int _selectedPlant = -1;
 
-    public EditorShell(Localizer text, FieldScene scene)
+    public EditorShell(Localizer text, FieldScene scene, bool buildDefaultLayout)
     {
         _text = text;
         _scene = scene;
+        _layoutPending = buildDefaultLayout;
     }
 
     public bool ExitRequested { get; private set; }
@@ -49,18 +48,21 @@ public sealed class EditorShell
             | ImGuiWindowFlags.NoBringToFrontOnFocus
             | ImGuiWindowFlags.NoNavFocus
             | ImGuiWindowFlags.NoDocking
+            | ImGuiWindowFlags.NoScrollbar
+            | ImGuiWindowFlags.NoScrollWithMouse
             | ImGuiWindowFlags.MenuBar;
 
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0f);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
         bool open = ImGui.Begin("##GFlib3Host", hostFlags);
-        ImGui.PopStyleVar(2);
+        ImGui.PopStyleVar(3);
 
         if (open)
         {
             DrawMenuBar();
             DrawToolbar();
-            ImGui.DockSpace(ImGui.GetID("GFlib3Dockspace"), new Vector2(0, 0), ImGuiDockNodeFlags.PassthruCentralNode);
+            DrawDockspace();
         }
 
         ImGui.End();
@@ -69,8 +71,8 @@ public sealed class EditorShell
         DrawProject();
         DrawInspector();
         DrawConsolePanels();
-        DrawStatus(frame);
         DrawScene(frame);
+        DrawStatusBar(frame);
         DrawAbout();
     }
 
@@ -128,6 +130,16 @@ public sealed class EditorShell
                 ImGui.EndMenu();
             }
 
+            if (ImGui.BeginMenu(_text.T("menu.view.layout")))
+            {
+                if (ImGui.MenuItem(_text.T("menu.view.resetLayout")))
+                {
+                    _layoutPending = true;
+                }
+
+                ImGui.EndMenu();
+            }
+
             ImGui.EndMenu();
         }
 
@@ -147,32 +159,53 @@ public sealed class EditorShell
 
     private void DrawToolbar()
     {
-        ImGui.BeginChild("##toolbar", new Vector2(0, 34), ImGuiChildFlags.None, ImGuiWindowFlags.NoScrollbar);
-        ImGui.BeginDisabled();
-        ImGui.Button(_text.T("toolbar.select"));
+        Vector2 start = ImGui.GetCursorScreenPos();
+        ImDrawListPtr draw = ImGui.GetWindowDrawList();
+        Vector2 end = new(start.X + ImGui.GetWindowWidth(), start.Y + EditorTheme.ToolbarHeight);
+        draw.AddRectFilled(start, end, EditorIcons.ToColor(EditorTheme.ToolbarBackground));
+        draw.AddLine(start, new Vector2(end.X, start.Y), EditorIcons.ToColor(EditorTheme.Border));
+        draw.AddLine(
+            new Vector2(start.X, end.Y - 1f),
+            end,
+            EditorIcons.ToColor(EditorTheme.Border));
+
+        float buttonY = start.Y + MathF.Max(0f, (EditorTheme.ToolbarHeight - ImGui.GetFrameHeight()) * 0.5f);
+        ImGui.SetCursorScreenPos(new Vector2(start.X + 6f, buttonY));
+        EditorIcons.ToolButton(EditorIcon.Select, _text.T("toolbar.select"), active: true, enabled: false);
         ImGui.SameLine();
-        ImGui.Button(_text.T("toolbar.move"));
+        EditorIcons.ToolButton(EditorIcon.Move, _text.T("toolbar.move"), active: false, enabled: false);
         ImGui.SameLine();
-        ImGui.Button(_text.T("toolbar.rotate"));
+        EditorIcons.ToolButton(EditorIcon.Rotate, _text.T("toolbar.rotate"), active: false, enabled: false);
         ImGui.SameLine();
-        ImGui.Button(_text.T("toolbar.scale"));
-        ImGui.EndDisabled();
-        ImGui.SameLine();
-        if (ImGui.Button(_text.T("toolbar.frame")))
+        EditorIcons.ToolButton(EditorIcon.Scale, _text.T("toolbar.scale"), active: false, enabled: false);
+        EditorIcons.ToolbarSeparator();
+        if (EditorIcons.ToolButton(EditorIcon.Frame, _text.T("toolbar.frame"), active: false, enabled: true))
         {
             FrameRequested = true;
         }
 
-        ImGui.SameLine();
-        ImGui.TextDisabled(_text.T("toolbar.mode.viewer"));
-        ImGui.EndChild();
+        ImGui.SetCursorScreenPos(new Vector2(start.X, start.Y + EditorTheme.ToolbarHeight));
+    }
+
+    private void DrawDockspace()
+    {
+        _dockspaceId = EditorLayout.DockspaceId;
+        Vector2 position = ImGui.GetCursorScreenPos();
+        Vector2 size = ImGui.GetContentRegionAvail();
+        size.Y = MathF.Max(1f, size.Y - EditorTheme.StatusBarHeight);
+
+        if (_layoutPending)
+        {
+            EditorLayout.Build(_dockspaceId, position, size);
+            _layoutPending = false;
+        }
+
+        ImGui.DockSpace(_dockspaceId, size, ImGuiDockNodeFlags.None);
     }
 
     private void DrawHierarchy()
     {
-        ImGui.SetNextWindowPos(new Vector2(0, 64), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(320, 360), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.hierarchy")))
+        if (!ImGui.Begin(EditorLayout.HierarchyWindow))
         {
             ImGui.End();
             return;
@@ -216,9 +249,7 @@ public sealed class EditorShell
 
     private void DrawProject()
     {
-        ImGui.SetNextWindowPos(new Vector2(0, 430), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(320, 260), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.project")))
+        if (!ImGui.Begin(EditorLayout.ProjectWindow))
         {
             ImGui.End();
             return;
@@ -251,9 +282,7 @@ public sealed class EditorShell
 
     private void DrawInspector()
     {
-        ImGui.SetNextWindowPos(new Vector2(1200, 64), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(360, 700), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.inspector")))
+        if (!ImGui.Begin(EditorLayout.InspectorWindow))
         {
             ImGui.End();
             return;
@@ -318,9 +347,7 @@ public sealed class EditorShell
 
     private void DrawConsolePanels()
     {
-        ImGui.SetNextWindowPos(new Vector2(330, 640), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(700, 230), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.console"), ImGuiWindowFlags.NoCollapse))
+        if (!ImGui.Begin(EditorLayout.ConsoleWindow, ImGuiWindowFlags.NoCollapse))
         {
             ImGui.End();
             return;
@@ -363,10 +390,10 @@ public sealed class EditorShell
         foreach (string message in _scene.Messages)
         {
             Vector4 color = message.StartsWith("warning:", StringComparison.OrdinalIgnoreCase)
-                ? WarningColor
+                ? EditorTheme.Warning
                 : message.StartsWith("error:", StringComparison.OrdinalIgnoreCase)
-                    ? ErrorColor
-                    : PanelColor;
+                    ? EditorTheme.Error
+                    : EditorTheme.TextPrimary;
             ImGui.TextColored(color, message);
         }
     }
@@ -382,40 +409,73 @@ public sealed class EditorShell
             return;
         }
 
-        ImGui.TextColored(WarningColor, $"{_text.T("validation.warnings")}: {warnings.Count}");
+        ImGui.TextColored(EditorTheme.Warning, $"{_text.T("validation.warnings")}: {warnings.Count}");
         foreach (string warning in warnings)
         {
             ImGui.BulletText(warning);
         }
     }
 
-    private void DrawStatus(UiFrameContext frame)
+    private void DrawStatusBar(UiFrameContext frame)
     {
-        ImGui.SetNextWindowPos(new Vector2(0, 695), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(320, 180), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.status"), ImGuiWindowFlags.NoCollapse))
-        {
-            ImGui.End();
-            return;
-        }
+        ImGuiViewportPtr viewport = ImGui.GetMainViewport();
+        Vector2 position = new(
+            viewport.WorkPos.X,
+            viewport.WorkPos.Y + viewport.WorkSize.Y - EditorTheme.StatusBarHeight);
+        var size = new Vector2(viewport.WorkSize.X, EditorTheme.StatusBarHeight);
+        ImDrawListPtr draw = ImGui.GetForegroundDrawList(viewport);
+        draw.AddRectFilled(position, position + size, EditorIcons.ToColor(EditorTheme.StatusBackground));
+        draw.AddLine(position, new Vector2(position.X + size.X, position.Y), EditorIcons.ToColor(EditorTheme.Border));
 
-        Vector3 position = frame.Camera.Position;
-        DrawKeyValue(_text.T("status.camera"), $"{position.X:F1}, {position.Y:F1}, {position.Z:F1}");
-        DrawKeyValue(_text.T("status.fps"), ImGui.GetIO().Framerate.ToString("F1", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("status.mode"), _text.T("toolbar.mode.viewer"));
-        DrawKeyValue("Triangles", frame.Triangles.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue("Instances", frame.Instances.ToString("N0", CultureInfo.InvariantCulture));
-        ImGui.TextDisabled(frame.Status);
-        ImGui.End();
+        float x = position.X + 10f;
+        float y = position.Y + 4f;
+        x = AddStatusText(draw, x, y, frame.Status, EditorTheme.TextPrimary);
+        x = AddStatusSeparator(draw, x, y);
+        Vector3 camera = frame.Camera.Position;
+        x = AddStatusPair(draw, x, y, _text.T("status.camera"), $"{camera.X:F1}, {camera.Y:F1}, {camera.Z:F1}");
+        x = AddStatusSeparator(draw, x, y);
+        x = AddStatusPair(draw, x, y, _text.T("status.fps"), ImGui.GetIO().Framerate.ToString("F1", CultureInfo.InvariantCulture));
+        x = AddStatusSeparator(draw, x, y);
+        x = AddStatusPair(draw, x, y, _text.T("status.triangles"), frame.Triangles.ToString("N0", CultureInfo.InvariantCulture));
+        x = AddStatusSeparator(draw, x, y);
+        AddStatusPair(draw, x, y, _text.T("status.instances"), frame.Instances.ToString("N0", CultureInfo.InvariantCulture));
+
+        string mode = _text.T("toolbar.mode.viewer");
+        float modeWidth = ImGui.CalcTextSize(mode).X;
+        draw.AddText(
+            new Vector2(position.X + size.X - modeWidth - 10f, y),
+            EditorIcons.ToColor(EditorTheme.TextDisabled),
+            mode);
+    }
+
+    private static float AddStatusText(ImDrawListPtr draw, float x, float y, string text, Vector4 color)
+    {
+        draw.AddText(new Vector2(x, y), EditorIcons.ToColor(color), text);
+        return x + ImGui.CalcTextSize(text).X;
+    }
+
+    private static float AddStatusSeparator(ImDrawListPtr draw, float x, float y)
+    {
+        x += 8f;
+        x = AddStatusText(draw, x, y, "|", EditorTheme.TextDisabled);
+        return x + 8f;
+    }
+
+    private static float AddStatusPair(ImDrawListPtr draw, float x, float y, string label, string value)
+    {
+        x = AddStatusText(draw, x, y, label, EditorTheme.TextMuted);
+        x += 4f;
+        return AddStatusText(draw, x, y, value, EditorTheme.TextPrimary);
     }
 
     private void DrawScene(UiFrameContext frame)
     {
-        ImGui.SetNextWindowPos(new Vector2(330, 64), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSize(new Vector2(850, 560), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin(_text.T("panel.scene"), ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        bool open = ImGui.Begin(EditorLayout.SceneWindow, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+        if (!open)
         {
             ImGui.End();
+            ImGui.PopStyleVar();
             return;
         }
 
@@ -426,7 +486,13 @@ public sealed class EditorShell
         ImGui.Image((nint)texture, available, new Vector2(0, 1), new Vector2(1, 0));
 
         Vector2 min = ImGui.GetItemRectMin();
-        ImGui.GetWindowDrawList().AddText(min + new Vector2(10, 8), 0xFFC8C8C8, _text.T("control.hint"));
+        string hint = _text.T("control.hint");
+        Vector2 hintSize = ImGui.CalcTextSize(hint);
+        Vector2 hintMin = min + new Vector2(8f, 8f);
+        Vector2 hintMax = hintMin + hintSize + new Vector2(12f, 8f);
+        ImDrawListPtr draw = ImGui.GetWindowDrawList();
+        draw.AddRectFilled(hintMin, hintMax, 0xB0202020, 2f);
+        draw.AddText(hintMin + new Vector2(6f, 4f), EditorIcons.ToColor(EditorTheme.TextMuted), hint);
 
         bool hovered = ImGui.IsItemHovered();
         if (hovered)
@@ -439,6 +505,7 @@ public sealed class EditorShell
         }
 
         ImGui.End();
+        ImGui.PopStyleVar();
     }
 
     private static void HandleCameraInput(FreeFlyCamera camera)

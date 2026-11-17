@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ImGuiNET;
 using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Render.Camera;
@@ -37,6 +38,7 @@ internal sealed class RenderApp : IDisposable
     private int _frame;
     private bool _screenshotWritten;
     private bool _disposed;
+    private IntPtr _layoutIniPath;
     private string _status = string.Empty;
 
     public RenderApp(AppOptions options, FieldScene scene)
@@ -85,6 +87,11 @@ internal sealed class RenderApp : IDisposable
         _imgui = null;
         _input?.Dispose();
         _input = null;
+        if (_layoutIniPath != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(_layoutIniPath);
+            _layoutIniPath = IntPtr.Zero;
+        }
     }
 
     private void OnLoad()
@@ -93,6 +100,9 @@ internal sealed class RenderApp : IDisposable
         _gl = GL.GetApi(_window);
         _input = _window.CreateInput();
 
+        EditorLayout.EnsureIniDirectory();
+        bool hasSavedLayout = File.Exists(EditorLayout.IniPath);
+        _layoutIniPath = Marshal.StringToCoTaskMemUTF8(EditorLayout.IniPath);
         ImGuiFontConfig? font = CreateFontConfig();
         _imgui = new ImGuiController(_gl, _window, _input, font, ConfigureIo);
 
@@ -105,9 +115,9 @@ internal sealed class RenderApp : IDisposable
             !_options.NoTerrain,
             !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
-        _shell = new EditorShell(_text, _scene);
+        _shell = new EditorShell(_text, _scene, !hasSavedLayout);
 
-        ApplyTheme();
+        EditorTheme.Apply();
         FrameCamera();
         _clock.Restart();
     }
@@ -349,18 +359,25 @@ internal sealed class RenderApp : IDisposable
     {
         ImGuiIOPtr io = ImGui.GetIO();
         io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+        io.ConfigDockingWithShift = false;
         io.ConfigWindowsMoveFromTitleBarOnly = true;
+        io.ConfigWindowsResizeFromEdges = true;
+        unsafe
+        {
+            io.NativePtr->IniFilename = (byte*)_layoutIniPath;
+        }
     }
 
     private static ImGuiFontConfig? CreateFontConfig()
     {
+        const int fontSize = 14;
         string? path = FindJapaneseFont();
         if (path is null)
         {
             return null;
         }
 
-        return new ImGuiFontConfig(path, 17, io => io.Fonts.GetGlyphRangesJapanese());
+        return new ImGuiFontConfig(path, fontSize, io => io.Fonts.GetGlyphRangesJapanese());
     }
 
     private static string? FindJapaneseFont()
@@ -385,46 +402,6 @@ internal sealed class RenderApp : IDisposable
         }
 
         return null;
-    }
-
-    private static void ApplyTheme()
-    {
-        ImGui.StyleColorsDark();
-        ImGuiStylePtr style = ImGui.GetStyle();
-        style.WindowRounding = 0f;
-        style.ChildRounding = 0f;
-        style.FrameRounding = 3f;
-        style.PopupRounding = 3f;
-        style.ScrollbarRounding = 2f;
-        style.GrabRounding = 2f;
-        style.TabRounding = 3f;
-        style.WindowBorderSize = 1f;
-        style.FrameBorderSize = 0f;
-        style.ItemSpacing = new Vector2(8, 4);
-        style.FramePadding = new Vector2(8, 4);
-        style.IndentSpacing = 18f;
-        style.ScrollbarSize = 12f;
-
-        style.Colors[(int)ImGuiCol.WindowBg] = new Vector4(0.12f, 0.12f, 0.13f, 1f);
-        style.Colors[(int)ImGuiCol.ChildBg] = new Vector4(0.14f, 0.14f, 0.15f, 1f);
-        style.Colors[(int)ImGuiCol.PopupBg] = new Vector4(0.10f, 0.10f, 0.11f, 0.98f);
-        style.Colors[(int)ImGuiCol.Border] = new Vector4(0.20f, 0.20f, 0.21f, 1f);
-        style.Colors[(int)ImGuiCol.FrameBg] = new Vector4(0.19f, 0.19f, 0.20f, 1f);
-        style.Colors[(int)ImGuiCol.FrameBgHovered] = new Vector4(0.24f, 0.24f, 0.26f, 1f);
-        style.Colors[(int)ImGuiCol.FrameBgActive] = new Vector4(0.27f, 0.27f, 0.29f, 1f);
-        style.Colors[(int)ImGuiCol.TitleBg] = new Vector4(0.10f, 0.10f, 0.11f, 1f);
-        style.Colors[(int)ImGuiCol.TitleBgActive] = new Vector4(0.13f, 0.13f, 0.14f, 1f);
-        style.Colors[(int)ImGuiCol.MenuBarBg] = new Vector4(0.10f, 0.10f, 0.11f, 1f);
-        style.Colors[(int)ImGuiCol.Button] = new Vector4(0.21f, 0.21f, 0.23f, 1f);
-        style.Colors[(int)ImGuiCol.ButtonHovered] = new Vector4(0.27f, 0.27f, 0.29f, 1f);
-        style.Colors[(int)ImGuiCol.ButtonActive] = new Vector4(0.31f, 0.31f, 0.34f, 1f);
-        style.Colors[(int)ImGuiCol.Header] = new Vector4(0.22f, 0.25f, 0.31f, 1f);
-        style.Colors[(int)ImGuiCol.HeaderHovered] = new Vector4(0.27f, 0.31f, 0.38f, 1f);
-        style.Colors[(int)ImGuiCol.HeaderActive] = new Vector4(0.29f, 0.34f, 0.42f, 1f);
-        style.Colors[(int)ImGuiCol.Tab] = new Vector4(0.15f, 0.15f, 0.16f, 1f);
-        style.Colors[(int)ImGuiCol.TabHovered] = new Vector4(0.24f, 0.27f, 0.32f, 1f);
-        style.Colors[(int)ImGuiCol.TabActive] = new Vector4(0.21f, 0.24f, 0.29f, 1f);
-        style.Colors[(int)ImGuiCol.DockingPreview] = new Vector4(0.25f, 0.45f, 0.65f, 0.6f);
     }
 
     private static Vector3 ToVector(Vector3f value) => new(value.X, value.Y, value.Z);

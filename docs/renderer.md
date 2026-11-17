@@ -105,14 +105,21 @@ Folder hashes include the trailing slash.
 
 ## UI shell
 
-The host window contains a menu bar, a disabled toolbar, and a dockspace.
-Panels: Hierarchy, Scene, Inspector, Project, Console, Validation, History, and
-Status. Windows receive default positions on first use; docking is enabled and
-the layout persists in `imgui.ini` next to the executable.
+The host window contains a menu bar, an icon toolbar, and a dockspace. Panels:
+Hierarchy, Scene, Inspector, Project, and Console (Console hosts Validation and
+History tabs). A 22px status bar runs below the dock area.
+
+The default Unity-style layout is built programmatically: left 20% (Hierarchy
+45% / Project 55%), center 58% (Scene 68% / Console 32%), right 22% Inspector.
+Panel window names are stable English identifiers, so switching languages does
+not move or lose a docked panel. Docking and the saved layout use
+`%LOCALAPPDATA%\Nxa\GFlib3Tool\editor-layout.ini`.
+`View > Layout > Reset default layout` rebuilds the splits. Theme, metrics,
+icons, and the docking implementation are described in `docs/ui.md`.
 
 Labels come from embedded `Localization/en.json` and `ja.json`. The menu switch
 changes language at runtime. A CJK font is loaded from the Windows font folder
-(`meiryo.ttc`, `msgothic.ttc`, or `YuGothM.ttc`) for Japanese glyphs.
+(`meiryo.ttc`, `msgothic.ttc`, or `YuGothM.ttc`) for Japanese glyphs at 14px.
 
 ## Known limitations
 

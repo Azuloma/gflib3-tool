@@ -16,6 +16,7 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [terrain.md](terrain.md) | Terrain material, heightmap scale and mapping, splat layers, grid mesh |
 | [bntx.md](bntx.md) | BNTX texture containers, formats, block-linear layout, decoding |
 | [renderer.md](renderer.md) | Field viewer: terrain, room, scene placement, vegetation, UI shell, limitations |
+| [ui.md](ui.md) | Editor shell: Unity-style layout, palette, metrics, icons, docking |
 | [scene-layout.md](scene-layout.md) | Resident scene schema and background model placement (verified on the dump) |
 
 ## Related files
