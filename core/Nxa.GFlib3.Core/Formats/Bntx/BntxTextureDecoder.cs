@@ -51,6 +51,59 @@ public static class BntxTextureDecoder
             : DecodeUncompressed(texture, tight, width, height, layout);
     }
 
+    /// <summary>Decodes an <c>R16_FLOAT</c> or <c>R32_FLOAT</c> mip to row-major values.</summary>
+    public static float[] DecodeScalarFloat(BntxTexture texture, int mip)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+
+        if (texture.Depth != 1 || texture.ArrayCount != 1)
+        {
+            throw new NotSupportedException(
+                $"BNTX '{texture.Name}' has depth {texture.Depth} / array count {texture.ArrayCount}; " +
+                "only 2D single-surface textures are supported.");
+        }
+
+        if (texture.SampleCount != 1)
+        {
+            throw new NotSupportedException(
+                $"BNTX '{texture.Name}' has {texture.SampleCount} samples; multisampled textures are not supported.");
+        }
+
+        BntxFormatLayout layout = BntxFormats.Describe(texture.Format);
+        bool isR16 = layout.Channel == BntxChannelLayout.R16 && layout.DataType == BntxDataType.FloatingPoint;
+        bool isR32 = layout.Channel == BntxChannelLayout.R32 && layout.DataType == BntxDataType.FloatingPoint;
+        if (!isR16 && !isR32)
+        {
+            throw new NotSupportedException(
+                $"BNTX '{texture.Name}' format 0x{(uint)texture.Format:X4} is not a scalar float format.");
+        }
+
+        int width = texture.GetMipWidth(mip);
+        int height = texture.GetMipHeight(mip);
+        long pixelCount = (long)width * height;
+        if (pixelCount > MaxPixelCount)
+        {
+            throw new InvalidDataException(
+                $"BNTX '{texture.Name}' mip {mip} has {pixelCount} pixels, exceeding the limit.");
+        }
+
+        int blocksWide = (width + layout.BlockWidth - 1) / layout.BlockWidth;
+        int blocksHigh = (height + layout.BlockHeight - 1) / layout.BlockHeight;
+        int tightSize = checked(blocksWide * blocksHigh * layout.BytesPerBlock);
+        byte[] tight = new byte[tightSize];
+        ExpandToTight(texture, mip, tight, blocksWide, blocksHigh, layout.BytesPerBlock, layout);
+
+        var values = new float[pixelCount];
+        for (int i = 0; i < values.Length; i++)
+        {
+            values[i] = isR32
+                ? BinaryPrimitives.ReadSingleLittleEndian(tight.AsSpan(i * 4))
+                : (float)BitConverter.UInt16BitsToHalf(BinaryPrimitives.ReadUInt16LittleEndian(tight.AsSpan(i * 2)));
+        }
+
+        return values;
+    }
+
     private static void ExpandToTight(
         BntxTexture texture,
         int mip,
@@ -146,6 +199,7 @@ public static class BntxTextureDecoder
                 BntxChannelLayout.R8G8 => (pixel[0], pixel[1], (byte)0, (byte)255),
                 BntxChannelLayout.R5G6B5 => DecodeR5G6B5(pixel),
                 BntxChannelLayout.R16 => DecodeR16(pixel, layout.DataType),
+                BntxChannelLayout.R32 => DecodeR32(pixel, layout.DataType),
                 BntxChannelLayout.R8G8B8A8 => (pixel[0], pixel[1], pixel[2], pixel[3]),
                 BntxChannelLayout.B8G8R8A8 => (pixel[2], pixel[1], pixel[0], pixel[3]),
                 BntxChannelLayout.R10G10B10A2 => DecodeR10G10B10A2(pixel),
@@ -199,6 +253,18 @@ public static class BntxTextureDecoder
         }
 
         float value = (float)BitConverter.UInt16BitsToHalf(raw);
+        byte gray = float.IsNaN(value) ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
+        return (gray, gray, gray, 255);
+    }
+
+    private static (byte R, byte G, byte B, byte A) DecodeR32(ReadOnlySpan<byte> pixel, BntxDataType dataType)
+    {
+        float value = BinaryPrimitives.ReadSingleLittleEndian(pixel);
+        if (dataType != BntxDataType.FloatingPoint)
+        {
+            throw new NotSupportedException($"BNTX R32 data type 0x{(byte)dataType:X2} is not supported.");
+        }
+
         byte gray = float.IsNaN(value) ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
         return (gray, gray, gray, 255);
     }

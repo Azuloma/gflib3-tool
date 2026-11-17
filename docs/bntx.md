@@ -112,6 +112,7 @@ The format ID packs a channel layout and a data type:
 | 0x0B06 | R8G8B8A8 SRGB | 4 | no |
 | 0x0C01 | B8G8R8A8 UNORM | 4 | no |
 | 0x0E01 | R10G10B10A2 UNORM | 4 | yes |
+| 0x1405 | R32 FLOAT | 4 | yes (terrain packs) |
 | 0x1A01/0x1A06 | BC1 UNORM/SRGB | 8 | no |
 | 0x1B01/0x1B06 | BC2 UNORM/SRGB | 16 | no |
 | 0x1C01/0x1C06 | BC3 UNORM/SRGB | 16 | yes (UNORM) |
@@ -123,10 +124,13 @@ The format ID packs a channel layout and a data type:
 
 Data type codes: `01` UNORM, `02` SNORM, `05` FLOAT, `06` SRGB. Channel layout
 codes: `02` R8, `07` R5G6B5, `09` R8G8, `0A` R16, `0B` R8G8B8A8, `0C`
-B8G8R8A8, `0E` R10G10B10A2, `1A` BC1 … `20` BC7, `2D`+ ASTC.
+B8G8R8A8, `0E` R10G10B10A2, `14` R32, `1A` BC1 … `20` BC7, `2D`+ ASTC.
 
 Observed counts (205 textures): BC7 SRGB 56, BC4 UNORM 68, BC5 UNORM 44, BC7
-UNORM 10, BC3 UNORM 24, R16 FLOAT 2, R10G10B10A2 UNORM 1.
+UNORM 10, BC3 UNORM 24, R16 FLOAT 2, R10G10B10A2 UNORM 1. Terrain packs add
+R32 FLOAT heightmaps (areas 01–04, 1025² or 2049²) and R16 FLOAT 2049²
+heightmaps (areas 05, 06, 11). Scalar float mips decode through
+`BntxTextureDecoder.DecodeScalarFloat`.
 
 ## Mip data layout
 
@@ -205,7 +209,7 @@ Naming and channel conventions in field packs:
 | `_nrm` | BC5 UNORM | R,G,B,A (RG stored) | normal |
 | `_ao`, `_mtl`, `_rgn` | BC4 UNORM | R,R,R,One | masks |
 | `windmask` | BC7 UNORM | R,G,B,A | vegetation wind |
-| `heightmap` | R16 FLOAT | R,R,R,One | terrain height |
+| `heightmap` | R16/R32 FLOAT | R,R,R,One | terrain height |
 | `normalmap` | R10G10B10A2 UNORM | R,G,B,A | terrain normal |
 | `map_lmap_pic_*` | BC3 UNORM | R,G,B,A | world-map images |
 

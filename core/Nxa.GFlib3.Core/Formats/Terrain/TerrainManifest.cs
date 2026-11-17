@@ -32,7 +32,11 @@ public sealed class TerrainManifest
         uint detailGroupCount,
         TerrainDetailGroup[] detailGroups,
         string? materialPath,
-        string[] detailMapPaths)
+        string[] detailMapPaths,
+        float gridWidth,
+        float gridHeight,
+        float heightScale,
+        (uint X, uint Y, uint Z) cellDimensions)
     {
         PlantGroupCount = plantGroupCount;
         PlantGroups = plantGroups;
@@ -40,6 +44,10 @@ public sealed class TerrainManifest
         DetailGroups = detailGroups;
         MaterialPath = materialPath;
         DetailMapPaths = detailMapPaths;
+        GridWidth = gridWidth;
+        GridHeight = gridHeight;
+        HeightScale = heightScale;
+        CellDimensions = cellDimensions;
     }
 
     public uint PlantGroupCount { get; }
@@ -49,6 +57,21 @@ public sealed class TerrainManifest
     public uint DetailGroupCount { get; }
 
     public IReadOnlyList<TerrainDetailGroup> DetailGroups { get; }
+
+    /// <summary>Heightmap grid width from field 1 (1025 in observed packs).</summary>
+    public float GridWidth { get; }
+
+    /// <summary>Heightmap grid height from field 1 (1025 in observed packs).</summary>
+    public float GridHeight { get; }
+
+    /// <summary>
+    /// Height extent from field 1; heightmap samples are normalized and scale by
+    /// this value (185 for area 00).
+    /// </summary>
+    public float HeightScale { get; }
+
+    /// <summary>Field 2 values (1024/1024/1025); individual meanings unresolved.</summary>
+    public (uint X, uint Y, uint Z) CellDimensions { get; }
 
     /// <summary>Terrain material (<c>.trmtr</c>) referenced by the manifest.</summary>
     public string? MaterialPath { get; }
@@ -86,13 +109,28 @@ public sealed class TerrainManifest
         string? materialPath = material?.GetString(0);
         string[] detailMaps = ReadStringVector(root, 8);
 
+        FlatBufferTable? dimensions = root.GetTable(1);
+        float gridWidth = dimensions?.GetFloat(0) ?? 0;
+        float gridHeight = dimensions?.GetFloat(1) ?? 0;
+        float heightScale = dimensions?.GetFloat(2) ?? 0;
+
+        FlatBufferTable? cells = root.GetTable(2);
+        (uint X, uint Y, uint Z) cellDimensions = (
+            cells?.GetUInt32(0) ?? 0,
+            cells?.GetUInt32(1) ?? 0,
+            cells?.GetUInt32(2) ?? 0);
+
         return new TerrainManifest(
             plantCount,
             plantGroups,
             detailCount,
             detailGroups,
             materialPath,
-            detailMaps);
+            detailMaps,
+            gridWidth,
+            gridHeight,
+            heightScale,
+            cellDimensions);
     }
 
     /// <summary>

@@ -55,9 +55,10 @@ Observed root fields (verified in areas 00–06 and 11):
 | 9 | — | absent in all sampled packs |
 | 10 | float[] | eight floats, e.g. `0,0,0,0,1025,185,1025,0` |
 
-Field 1's third float and field 10's sixth value agree and look like the terrain
-height extent (185, 121.76, 200.24, 127.08, 302, 168, 36.67, 238 for areas
-00–06 and 11). Fields 0–2, 9, and 10 are not yet used by the viewer.
+Field 1's third float and field 10's sixth value agree and are the terrain
+height scale (185, 121.76, 200.24, 127.08, 302, 168, 36.67, 238 for areas
+00–06 and 11); see `terrain.md`. Fields 0–2, 9, and 10 are not yet used by the
+viewer.
 
 Plant group (field 4):
 
