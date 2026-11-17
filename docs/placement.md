@@ -27,23 +27,37 @@ Path hashes are FNV-1a 64 with the Game Freak offset basis
 ## Terrain manifest
 
 One FlatBuffer entry per terrain pack lists the plant model groups and their
-instance files. The manifest's own path has not been resolved yet; in
-`ha_area00.gfpak` it is entry 5.
+instance files. The entry has **no resolved file name**: gfpak stores only path
+hashes and no candidate name matched. It is located structurally and reliably:
+its root has plant/detail group fields, every plant group model ends in
+`.trmdl`, and every instance path ends in `.trins`. Entry indices vary by pack
+(5, 7, 5, 7, 7, 5, 139, 81 for areas 00–06 and 11). Decompressed size ranges
+from 1,664 to 35,284 bytes.
 
-Observed root fields:
+Its folder hash resolves to `bin/field/terrain/ha_areaNN/terrain/` (the folder
+hash includes the trailing slash). `areaNN_0_0.trmtr` and the `.trins` files in
+the same folder resolve with the usual file-path hashing. The manifest file name
+remains unknown because it is not among the names recovered so far.
+
+Observed root fields (verified in areas 00–06 and 11):
 
 | Field | Type | Contents |
 | --- | --- | --- |
-| 0 | table | four floats (0.5, 0.5, 0.5, 0.7 in area 00) |
-| 1 | table | five ints (1025, 1025, 185, 8, 2048 in area 00) |
-| 2 | table | three ints (1024, 1024, 1025 in area 00) |
+| 0 | table | up to four floats; present fields are 0.5/0.5/0.5/0.7 or 0.5/0.5/0.7 |
+| 1 | table | f32 ×3 then u32 ×2: `1025, 1025, height`; dimensions are 1025 or 2048 |
+| 2 | table | three u32: `1024, 1024, 1025` (or `2048, 2048, 2049`) |
 | 3 | u32 | plant group count |
 | 4 | table[] | plant groups |
 | 5 | u32 | detail group count |
 | 6 | table[] | detail groups |
-| 7 | table | terrain material path (`area00_0_0.trmtr`) |
+| 7 | table | one string: terrain material path (`area00_0_0.trmtr`) |
 | 8 | string[] | detail-map paths (`area00_0_0_detailmap_N.trtbf`) |
-| 9, 10 | — | unlabelled |
+| 9 | — | absent in all sampled packs |
+| 10 | float[] | eight floats, e.g. `0,0,0,0,1025,185,1025,0` |
+
+Field 1's third float and field 10's sixth value agree and look like the terrain
+height extent (185, 121.76, 200.24, 127.08, 302, 168, 36.67, 238 for areas
+00–06 and 11). Fields 0–2, 9, and 10 are not yet used by the viewer.
 
 Plant group (field 4):
 
@@ -52,14 +66,37 @@ Plant group (field 4):
 | 0 | string | model path, e.g. `plants_tree02.trmdl` |
 | 1 | string[] | `.trins` paths for this model |
 
-Example (`ha_area00`): 3 plant groups and 25 `.trins` files.
-`plants_tree02.trmdl` → 6 `.trins`; `plants_tree01.trmdl` → 11;
-`plants_area02_tree01.trmdl` → 8.
+Verified group and instance-path totals:
 
-Detail group (field 6) tables carry a model path and many float parameters
-(scale ranges, wind, color, etc.). No `.trins` vector was observed in these
-groups. **Hypothesis:** grass/detail layers are placed or scattered by the
-terrain material/shader rather than by explicit instances; not yet verified.
+| Pack | Plant groups | `.trins` paths | Detail groups | Detail maps |
+| --- | ---: | ---: | ---: | ---: |
+| `ha_area00` | 3 | 25 | 11 | 3 |
+| `ha_area01` | 9 | 217 | 20 | 5 |
+| `ha_area02` | 11 | 574 | 14 | 4 |
+| `ha_area03` | 6 | 145 | 16 | 4 |
+| `ha_area04` | 5 | 232 | 11 | 3 |
+| `ha_area05` | 6 | 195 | 7 | 2 |
+| `ha_area06` | 5 | 19 | 4 | 1 |
+| `ha_area11` | 4 | 14 | 3 | 1 |
+
+The per-pack instance counts above sum the `.trins` placements; the totals in
+the later table count the matrices inside those files.
+
+Detail group (field 6):
+
+| Field | Type | Contents |
+| --- | --- | --- |
+| 0 | string | model path, e.g. `plants_area00_grass01_alb.trmdl` |
+| 1–18 | float/u32 | scale ranges, wind, color, and other scatter parameters |
+
+The sampled groups have 17–18 trailing parameters; index 8 and 9 are small u32s
+(4/38), the rest are floats. **Hypothesis:** grass/detail layers are scattered
+by the terrain material/shader using these parameters rather than by explicit
+instances; still unverified.
+
+Areas 06 and 11 use the `terrain_1_1` material and cell prefix instead of
+`areaNN_0_0`, matching the `terrain_X_Z_*` `.trins` naming.
+
 
 ## `.trins` / TRINS
 
@@ -165,11 +202,14 @@ The format supports adding instances, not just moving existing ones:
 
 ## Open questions
 
+- Manifest file name: the entry is found structurally, but its gfpak path hash
+  is not matched by any recovered name.
+- Fields 0–2, 9, and 10: dimensions and the height-like value are consistent
+  with a heightmap, but the individual field meanings are not confirmed.
 - Prefix-to-cell mapping (`areaNN_0_0` vs. `terrain_X_Z`) and streaming rules.
 - Whether appending an instance to any loaded cell is sufficient, or whether the
   cell/grid coordinates must match the world position.
 - Collision generation/update for newly placed vegetation.
-- Exact manifest path/name and the meaning of fields 0–2, 9, 10.
 - Detail-group (field 6) semantics: are grass layers explicitly instanced?
 - Matrix multiplication convention and coordinate handedness at render time.
 - `d0` LOD/detail semantics.
