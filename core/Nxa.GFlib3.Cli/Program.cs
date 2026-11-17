@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 the NXAevora Projects
 
 using Nxa.GFlib3.Cli.Commands;
@@ -14,6 +14,7 @@ try
     return args[0] switch
     {
         "gfpak" => GfpakCommand.Run(args.AsSpan(1)),
+        "sarc" => SarcCommand.Run(args.AsSpan(1)),
         _ => UnknownCommand(args[0]),
     };
 }
@@ -40,6 +41,10 @@ static void PrintUsage()
           gfpak list <archive>                          List file-table entries
           gfpak extract <archive> <output-dir> [--entry <index>]
                                                         Decompress entries to disk
+          sarc info <archive>                           Show SARC header details
+          sarc list <archive>                           List SARC entries
+          sarc extract <archive> <output-dir> [--entry <index>]
+                                                        Extract SARC entries to disk
 
         The native decoder is loaded from NXA_GF3_NATIVE, the application
         directory, or artifacts/native. Build it with scripts/build-native.ps1.

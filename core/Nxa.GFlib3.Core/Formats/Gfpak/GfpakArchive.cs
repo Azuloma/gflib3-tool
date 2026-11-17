@@ -354,7 +354,7 @@ public sealed class GfpakArchive : IDisposable
     private void ValidateEntry(GfpakEntry entry)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if ((uint)entry.Index >= (uint)Entries.Count)
+        if ((uint)entry.Index >= (uint)Entries.Count || !ReferenceEquals(Entries[entry.Index], entry))
         {
             throw new ArgumentException("The entry does not belong to this archive.", nameof(entry));
         }
