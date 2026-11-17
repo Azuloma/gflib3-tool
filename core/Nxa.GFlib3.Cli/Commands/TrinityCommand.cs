@@ -49,7 +49,16 @@ internal static class TrinityCommand
         }
 
         byte[] data = File.ReadAllBytes(path);
-        TrinityFile file = forced is null ? TrinityFile.Parse(data) : TrinityFile.Parse(data, forced.Value);
+        TrinityFile file;
+        try
+        {
+            file = forced is null ? TrinityFile.Parse(data) : TrinityFile.Parse(data, forced.Value);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"error: {path}: {ex.Message}");
+            return 1;
+        }
 
         Console.WriteLine($"kind:     {file.Kind}");
         switch (file.Kind)

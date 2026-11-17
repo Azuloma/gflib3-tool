@@ -10,6 +10,8 @@ namespace Nxa.GFlib3.Core.Compression;
 public static class OodleKraken
 {
     private const string LibraryName = "Nxa.GFlib3.Native";
+
+    // ooz writes up to 64 bytes past the declared output; keep a guarded margin.
     private const int SafeSpace = 64;
 
     static OodleKraken()

@@ -8,15 +8,18 @@ namespace Nxa.GFlib3.Core.Formats.Trinity;
 /// <summary>A parsed Trinity model file, detected from its FlatBuffer shape.</summary>
 public sealed class TrinityFile
 {
+    private readonly byte[] _data;
+
     private TrinityFile(byte[] data, TrinityKind kind)
     {
-        Data = data;
+        _data = data;
         Kind = kind;
     }
 
     public TrinityKind Kind { get; }
 
-    public byte[] Data { get; }
+    /// <summary>Raw parsed bytes; read-only so callers cannot invalidate parsed views.</summary>
+    public ReadOnlyMemory<byte> Data => _data;
 
     public TrmbfFile? Trmbf { get; private init; }
 

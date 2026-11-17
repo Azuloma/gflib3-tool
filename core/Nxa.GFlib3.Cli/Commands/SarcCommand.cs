@@ -69,7 +69,13 @@ internal static class SarcCommand
             switch (args[i])
             {
                 case "--entry" when i + 1 < args.Length:
-                    onlyIndex = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                    if (!int.TryParse(args[++i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+                    {
+                        Console.Error.WriteLine($"error: invalid entry index '{args[i]}'");
+                        return 1;
+                    }
+
+                    onlyIndex = parsed;
                     break;
                 default:
                     Console.Error.WriteLine($"error: unknown argument '{args[i]}'");
@@ -109,7 +115,10 @@ internal static class SarcCommand
                 File.WriteAllBytes(outputPath, archive.ReadEntry(entry));
                 written++;
             }
-            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+            catch (Exception ex) when (ex is InvalidDataException
+                or NotSupportedException
+                or IOException
+                or UnauthorizedAccessException)
             {
                 Console.Error.WriteLine($"error: entry {entry.Index} ({entry.Name}): {ex.Message}");
                 failed++;

@@ -68,7 +68,14 @@ public sealed class GfpakArchive : IDisposable
             bufferSize: 1 << 16,
             FileOptions.RandomAccess);
 
-        return new GfpakArchive(stream, ownsStream: true);
+        try
+        {
+            return new GfpakArchive(stream, ownsStream: true);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new InvalidDataException($"Failed to open gfpak '{path}': {ex.Message}", ex);
+        }
     }
 
     /// <summary>Reads an archive from a seekable stream.</summary>
@@ -154,7 +161,20 @@ public sealed class GfpakArchive : IDisposable
                 return DecompressZlib(entry, packed);
 
             case CompressionType.OodleKraken:
-                return OodleKraken.Decompress(packed, entry.SizeDecompressed);
+                try
+                {
+                    return OodleKraken.Decompress(packed, entry.SizeDecompressed);
+                }
+                catch (InvalidDataException ex)
+                {
+                    throw new InvalidDataException(
+                        $"Entry {entry.Index} Oodle Kraken decode failed: {ex.Message}", ex);
+                }
+                catch (DllNotFoundException ex)
+                {
+                    throw new DllNotFoundException(
+                        $"Entry {entry.Index}: native Kraken decoder not found. {ex.Message}", ex);
+                }
 
             default:
                 throw new NotSupportedException(

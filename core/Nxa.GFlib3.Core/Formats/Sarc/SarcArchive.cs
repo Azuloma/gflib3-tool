@@ -12,12 +12,17 @@ public sealed class SarcArchive : IDisposable
     public const uint Magic = 0x43524153; // "SARC"
     public const uint SfatMagic = 0x54414653; // "SFAT"
     public const uint SfntMagic = 0x544E4653; // "SFNT"
+    public const ushort BomValue = 0xFEFF;
     public const int HeaderSize = 0x14;
+    public const int SfatHeaderSize = 0x0C;
     public const int SfatEntrySize = 0x10;
     public const int SfntHeaderSize = 0x08;
 
+    private const uint NameOffsetMask = 0xFFFFFF;
+    private const int NameOffsetShift = 2;
     private const int MaxNodeCount = 1_000_000;
     private const int MaxNameLength = 4096;
+    private const int MaxEntrySize = 1 << 30;
 
     private readonly Stream _stream;
     private readonly bool _ownsStream;
@@ -75,7 +80,14 @@ public sealed class SarcArchive : IDisposable
             bufferSize: 1 << 16,
             FileOptions.RandomAccess);
 
-        return new SarcArchive(stream, ownsStream: true);
+        try
+        {
+            return new SarcArchive(stream, ownsStream: true);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new InvalidDataException($"Failed to open SARC '{path}': {ex.Message}", ex);
+        }
     }
 
     public static SarcArchive Read(Stream stream, bool leaveOpen = false)
@@ -162,7 +174,7 @@ public sealed class SarcArchive : IDisposable
             throw new InvalidDataException($"Invalid SARC header size {HeaderSizeValue}.");
         }
 
-        if (Bom != 0xFEFF)
+        if (Bom != BomValue)
         {
             throw new InvalidDataException($"Invalid SARC byte-order mark 0x{Bom:X4}.");
         }
@@ -173,12 +185,13 @@ public sealed class SarcArchive : IDisposable
                 $"SARC declares 0x{DeclaredFileSize:X} bytes but only 0x{_length:X} are present.");
         }
 
+        // Some archives declare a zero size; fall back to the actual file length.
         _logicalLength = DeclaredFileSize == 0 ? _length : DeclaredFileSize;
 
         long sfatOffset = HeaderSizeValue;
-        RequireRange(sfatOffset, 0x0C);
+        RequireRange(sfatOffset, SfatHeaderSize);
 
-        Span<byte> sfat = stackalloc byte[0x0C];
+        Span<byte> sfat = stackalloc byte[SfatHeaderSize];
         ReadExactlyAt(sfatOffset, sfat);
 
         uint sfatMagic = BinaryPrimitives.ReadUInt32LittleEndian(sfat);
@@ -191,7 +204,7 @@ public sealed class SarcArchive : IDisposable
         ushort nodeCount = BinaryPrimitives.ReadUInt16LittleEndian(sfat[0x06..]);
         HashKey = BinaryPrimitives.ReadUInt32LittleEndian(sfat[0x08..]);
 
-        if (sfatHeaderSize < 0x0C || (int)nodeCount > MaxNodeCount)
+        if (sfatHeaderSize < SfatHeaderSize || (int)nodeCount > MaxNodeCount)
         {
             throw new InvalidDataException("Invalid SFAT header.");
         }
@@ -250,9 +263,9 @@ public sealed class SarcArchive : IDisposable
                 throw new InvalidDataException($"Entry {i} has an invalid data range.");
             }
 
-            if (dataEnd - dataStart > int.MaxValue)
+            if (dataEnd - dataStart > MaxEntrySize)
             {
-                throw new InvalidDataException($"Entry {i} is too large.");
+                throw new InvalidDataException($"Entry {i} exceeds the maximum size.");
             }
 
             long absolute = (long)DataOffset + dataStart;
@@ -262,7 +275,7 @@ public sealed class SarcArchive : IDisposable
                 throw new InvalidDataException($"Entry {i} data lies outside the archive.");
             }
 
-            string name = ReadName(nameTable, attributes);
+            string name = ReadName(nameTable, attributes, i);
 
             entries[i] = new SarcEntry(i, name, hash, attributes, dataStart, dataEnd, absolute);
             _hashIndex.TryAdd(hash, i);
@@ -271,19 +284,20 @@ public sealed class SarcArchive : IDisposable
         return entries;
     }
 
-    private static string ReadName(byte[] nameTable, uint attributes)
+    private static string ReadName(byte[] nameTable, uint attributes, int entryIndex)
     {
-        long nameOffset = (long)(attributes & 0xFFFFFF) << 2;
+        long nameOffset = (long)(attributes & NameOffsetMask) << NameOffsetShift;
         if (nameOffset >= nameTable.Length)
         {
-            throw new InvalidDataException($"Name offset 0x{nameOffset:X} lies outside the name table.");
+            throw new InvalidDataException(
+                $"Entry {entryIndex} name offset 0x{nameOffset:X} lies outside the name table.");
         }
 
         ReadOnlySpan<byte> remainder = nameTable.AsSpan((int)nameOffset);
         int terminator = remainder.IndexOf((byte)0);
         if (terminator < 0 || terminator > MaxNameLength)
         {
-            throw new InvalidDataException("SARC entry name is not null-terminated.");
+            throw new InvalidDataException($"Entry {entryIndex} name is not null-terminated.");
         }
 
         return Encoding.UTF8.GetString(remainder[..terminator]);

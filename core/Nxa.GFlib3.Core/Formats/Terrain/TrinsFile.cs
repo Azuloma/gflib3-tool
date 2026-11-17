@@ -44,7 +44,19 @@ public sealed class TrinsFile
     public static TrinsFile Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return Parse(File.ReadAllBytes(path));
+
+        try
+        {
+            return Parse(File.ReadAllBytes(path));
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new InvalidDataException($"Failed to parse TRINS '{path}': {ex.Message}", ex);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw new NotSupportedException($"Unsupported TRINS '{path}': {ex.Message}", ex);
+        }
     }
 
     public static TrinsFile Parse(byte[] data)

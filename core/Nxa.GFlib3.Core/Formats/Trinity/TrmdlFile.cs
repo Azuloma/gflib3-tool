@@ -58,7 +58,11 @@ public sealed class TrmdlFile
 
         return new TrmdlFile(
             root.GetUInt32(0),
-            TrinityParse.TableVector(root, 1, static table => table.GetString(0) ?? string.Empty),
+            TrinityParse.TableVector(
+                root,
+                1,
+                static table => table.GetString(0)
+                    ?? throw new InvalidDataException("TRMDL mesh entry has no path.")),
             skeleton?.GetString(0),
             TrinityParse.StringVector(root, 3),
             TrinityParse.TableVector(root, 4, ParseLod),

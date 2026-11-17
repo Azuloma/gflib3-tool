@@ -17,7 +17,14 @@ internal static class TrinityParse
         var result = new T[vector.Count];
         for (int i = 0; i < result.Length; i++)
         {
-            result[i] = parse(vector.GetTable(i));
+            try
+            {
+                result[i] = parse(vector.GetTable(i));
+            }
+            catch (InvalidDataException ex)
+            {
+                throw new InvalidDataException($"Field {field}, entry {i}: {ex.Message}", ex);
+            }
         }
 
         return result;
@@ -33,7 +40,14 @@ internal static class TrinityParse
         var result = new string[vector.Count];
         for (int i = 0; i < result.Length; i++)
         {
-            result[i] = vector.GetString(i);
+            try
+            {
+                result[i] = vector.GetString(i);
+            }
+            catch (InvalidDataException ex)
+            {
+                throw new InvalidDataException($"Field {field}, entry {i}: {ex.Message}", ex);
+            }
         }
 
         return result;

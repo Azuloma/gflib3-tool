@@ -19,7 +19,12 @@ try
         _ => UnknownCommand(args[0]),
     };
 }
-catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or DllNotFoundException)
+catch (Exception ex) when (ex is IOException
+    or InvalidDataException
+    or NotSupportedException
+    or DllNotFoundException
+    or UnauthorizedAccessException
+    or ArgumentException)
 {
     Console.Error.WriteLine($"error: {ex.Message}");
     return 1;
