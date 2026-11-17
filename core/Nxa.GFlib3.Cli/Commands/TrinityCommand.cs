@@ -156,6 +156,12 @@ internal static class TrinityCommand
 
         Console.WriteLine($"skeleton: {file.SkeletonPath ?? "(none)"}");
         Console.WriteLine($"lods:     {file.Lods.Count}");
+        for (int i = 0; i < file.Lods.Count; i++)
+        {
+            Console.WriteLine(
+                $"  [{i}] type={file.Lods[i].Type ?? "(none)"} entries="
+                + string.Join(',', file.Lods[i].EntryIndices));
+        }
     }
 
     private static void PrintTrmtr(TrmtrFile file)

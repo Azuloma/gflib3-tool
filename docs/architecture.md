@@ -10,15 +10,10 @@
 | `Nxa.GFlib3.Cli` | `core/Nxa.GFlib3.Cli` | Command-line inspection and extraction |
 | `Nxa.GFlib3.Core.Tests` | `tests/Nxa.GFlib3.Core.Tests` | Unit and fixture tests |
 | `Nxa.GFlib3.Native` | `core/Nxa.GFlib3.Native` | C ABI shim over the vendored `ooz` Kraken decoder (CMake) |
+| `Nxa.GFlib3.Render` | `render/Nxa.GFlib3.Render` | Desktop viewer/editor using Silk.NET + ImGui.NET |
 
 All managed projects target `net9.0`. Build settings are centralized in
 `Directory.Build.props`; formatting rules live in `.editorconfig`.
-
-Planned:
-
-| Project | Path | Role |
-| --- | --- | --- |
-| `Nxa.GFlib3.Render` | `render/Nxa.GFlib3.Render` | Desktop viewer/editor using Silk.NET + ImGui.NET |
 
 ## Dependency direction
 
