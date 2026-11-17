@@ -418,9 +418,10 @@ public static class FieldSceneLoader
 
         try
         {
-        var cache = new Dictionary<ulong, List<SceneMesh>>();
+        var cache = new Dictionary<ulong, CatalogModel>();
         int sceneCount = 0;
         int placedParts = 0;
+        int emptyModels = 0;
         int unresolved = 0;
         int unresolvedReported = 0;
 
@@ -504,14 +505,20 @@ public static class FieldSceneLoader
                     }
 
                     sceneCount++;
-                    if (!cache.TryGetValue(sceneDefinition.ModelHash, out List<SceneMesh>? meshes))
+                    if (!cache.TryGetValue(sceneDefinition.ModelHash, out CatalogModel model))
                     {
-                        meshes = LoadCatalogMeshes(catalogEntry, scenePacks, scene);
-                        cache[sceneDefinition.ModelHash] = meshes;
+                        model = LoadCatalogMeshes(catalogEntry, scenePacks, scene);
+                        cache[sceneDefinition.ModelHash] = model;
                     }
 
-                    if (meshes.Count == 0)
+                    if (model.Meshes.Count == 0)
                     {
+                        if (model.Empty)
+                        {
+                            emptyModels++;
+                            continue;
+                        }
+
                         unresolved++;
                         if (unresolvedReported < 10)
                         {
@@ -542,7 +549,7 @@ public static class FieldSceneLoader
                         }
 
                         Matrix4x4 transform = Compose(node);
-                        foreach (SceneMesh source in meshes)
+                        foreach (SceneMesh source in model.Meshes)
                         {
                             scene.PlacedMeshes.Add(new SceneMesh
                             {
@@ -567,7 +574,7 @@ public static class FieldSceneLoader
 
         scene.Messages.Add(
             $"scene: {sceneCount} area scenes, {placedParts} placed parts, "
-            + $"{unresolved} unresolved models ({Path.GetFileName(path)}).");
+            + $"{emptyModels} empty models, {unresolved} unresolved models ({Path.GetFileName(path)}).");
         if (unresolved > 0)
         {
             scene.Messages.Add($"warning: {unresolved} area scenes have no resolved model.");
@@ -767,11 +774,18 @@ public static class FieldSceneLoader
         Terrain,
     }
 
-    private static List<SceneMesh> LoadCatalogMeshes(
+    private readonly record struct CatalogModel(List<SceneMesh> Meshes, bool Empty);
+
+    private readonly record struct MeshBuildSummary(bool Empty, bool Failed);
+
+    private static CatalogModel LoadCatalogMeshes(
         ResidentModelCatalogEntry entry,
         IReadOnlyList<GfpakPack> packs,
         FieldScene scene)
     {
+        bool emptyModel = false;
+        bool failedModel = false;
+
         string fileName = entry.PackedModelFileName;
         foreach (GfpakPack pack in packs)
         {
@@ -786,18 +800,25 @@ public static class FieldSceneLoader
             TrinityFile? file = pack.ParseTrinity(modelEntry);
             if (file?.Kind != TrinityKind.Trmdl || file.Trmdl is null)
             {
+                scene.Messages.Add(
+                    $"warning: model '{fileName}' in '{pack.ArchivePath}' is not a TRMDL.");
+                failedModel = true;
                 continue;
             }
 
             var meshes = new List<SceneMesh>();
-            AddModelMeshes(pack, scene, file.Trmdl, fileName, meshes, new HashSet<string>(StringComparer.Ordinal));
+            MeshBuildSummary summary = AddModelMeshes(
+                pack, scene, file.Trmdl, fileName, meshes, new HashSet<string>(StringComparer.Ordinal));
             if (meshes.Count > 0)
             {
-                return meshes;
+                return new CatalogModel(meshes, Empty: false);
             }
+
+            emptyModel |= summary.Empty;
+            failedModel |= summary.Failed;
         }
 
-        return [];
+        return new CatalogModel([], emptyModel && !failedModel);
     }
 
     private static Matrix4x4 Compose(ResidentSceneNode node)
@@ -868,7 +889,7 @@ public static class FieldSceneLoader
         }
     }
 
-    private static void AddModelMeshes(
+    private static MeshBuildSummary AddModelMeshes(
         GfpakPack pack,
         FieldScene scene,
         TrmdlFile model,
@@ -876,9 +897,14 @@ public static class FieldSceneLoader
         List<SceneMesh> target,
         HashSet<string> seenMeshes)
     {
+        bool anyPath = false;
+        bool emptyMesh = false;
+        bool failed = false;
+
         IEnumerable<string> meshPaths = SelectLod0Paths(model, owner, scene);
         foreach (string meshPath in meshPaths)
         {
+            anyPath = true;
             string meshKey = pack.LogicalFolder + meshPath;
             if (!seenMeshes.Add(meshKey))
             {
@@ -888,19 +914,28 @@ public static class FieldSceneLoader
             TrinityFile? trmshFile = ResolveTrinity(pack, meshPath, scene, owner);
             if (trmshFile?.Kind != TrinityKind.Trmsh)
             {
+                failed = true;
                 continue;
             }
 
             TrmshFile trmsh = trmshFile.Trmsh!;
+            if (trmsh.Meshes.Count == 0)
+            {
+                emptyMesh = true;
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(trmsh.BufferFilePath))
             {
                 scene.Messages.Add($"warning: '{meshPath}' has no buffer path.");
+                failed = true;
                 continue;
             }
 
             TrinityFile? trmbfFile = ResolveTrinity(pack, trmsh.BufferFilePath, scene, owner);
             if (trmbfFile?.Kind != TrinityKind.Trmbf)
             {
+                failed = true;
                 continue;
             }
 
@@ -913,6 +948,11 @@ public static class FieldSceneLoader
             }
 
             int count = Math.Min(trmbf.Buffers.Count, trmsh.Meshes.Count);
+            if (count < trmsh.Meshes.Count)
+            {
+                failed = true;
+            }
+
             for (int i = 0; i < count; i++)
             {
                 TrinityMeshGeometry geometry;
@@ -923,6 +963,7 @@ public static class FieldSceneLoader
                 catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
                 {
                     scene.Messages.Add($"warning: '{meshPath}' mesh {i}: {ex.Message}");
+                    failed = true;
                     continue;
                 }
 
@@ -941,6 +982,8 @@ public static class FieldSceneLoader
                 }
             }
         }
+
+        return new MeshBuildSummary(emptyMesh || !anyPath, failed);
     }
 
     private static IEnumerable<string> SelectLod0Paths(TrmdlFile model, string owner, FieldScene scene)

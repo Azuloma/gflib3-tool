@@ -159,8 +159,9 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 
 - Scene models resolve through the resident catalog and are searched across the
   base area packs, selected pack, area sub-packs, and `resident_bg_parts_model`.
-  Some scene packs reference models with buffers that are absent or not Trinity
-  (for example `wall_area00_02.trmbf`), so a few scenes stay unresolved.
+  Models whose TRMSH has no meshes (for example `wall_area00_02`,
+  `wall_area01_water01_asase`, and `wall_area01_kingtree01`) are reported as
+  empty models and skipped; they are not treated as unresolved.
 - Placement-table ownership is inferred from dominant scene/catalog tokens, then
   per-scene name or 12-unit heightmap tolerance for tokenless tables. Mixed tables
   that contain both an interior and outdoor scenes are handled by including only
@@ -168,6 +169,8 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 - Terrain albedo is splatted; normal maps, the hole map, detail grass,
   collisions, and event/NPC scenes are not rendered. Areas with no splat weight
   fall back to a flat green terrain color.
+- There is no sky, fog, or hole masking. Distant backdrop geometry can appear
+  detached from the terrain edge, and cave/hole caps render as dark surfaces.
 - The 16 MB buffers (entries 6–8) are sparse masks; their role is unresolved.
 - Only one room TRMDL is loaded. Selecting a room sub-pack such as
   `ha_area00_s07` shows that interior at the origin.
