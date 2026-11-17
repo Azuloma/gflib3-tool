@@ -14,13 +14,43 @@ identified by content:
 
 | Entry | Size | Contents |
 | --- | ---: | --- |
-| `0081` | 261,584 | Model-path catalog: 658 entries with `bg_parts` and `pack` model paths |
+| `0081` | 261,584 | Model-path catalog: 658 entries mapping hashes to `bg_parts` and `pack` TRMDL paths |
 | `0085` | 314,120 | Character/NPC model paths and positions |
 | `0088` | 1,264 | Door/transition nodes (`DOOR_AREA00_TO_AREA00_S01_1`) |
-| `0091` | 28,112 | Village building parts (`CommonWall_Housewall12`) with grid coordinates |
+| `0091` | 28,112 | Village building parts (`CommonWall_Housewall12`) with grid coordinates; schema not implemented |
+| `0095` | 241 scenes | Jubilife Village object placements; almost all scenes are unnamed |
 | `0157` | 2,024 | Mt. Tengen placement: `area00_s02_ground_mountain01_tengan` |
+| `1521` | 438 scenes | Area-04 buildings, stairs, tents, and object placements; mostly unnamed |
 | `1531` | 29,288 | NPC placements (39 scenes, 11 nodes for `area04_npc_ouji`) |
 | `1707` | 14,904 | Temple statue and gate placements (76 scenes) |
+
+## Model catalog (entry 0081, verified)
+
+Root field 0 is a vector of 658 entry tables. Each table has 11 fields:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| 0 | u64 | Model hash; matches the scene `ModelHash` field |
+| 1 | string | TRMDL path under `bin/field/model/bg_parts/...` |
+| 2 | string | Collision (`.trcol`) path for field 1 |
+| 3–5 | strings | State/animation paths; empty for most entries |
+| 6–7 | u64 | Zero in every observed entry |
+| 8 | string | TRMDL path under `bin/field/model/pack/...` |
+| 9–10 | strings | State and collision paths for field 8 |
+
+Some tables have empty path fields. Verified hashes:
+
+| Hash | Packed TRMDL |
+| --- | --- |
+| `0x96FB4DA5E97D8CAF` | `ground_mountain01_tengan.trmdl` |
+| `0xCBAC0E355C979BA9` | `objects_area04_building01.trmdl` |
+| `0xEF1AB1CE62726202` | `objects_area04_stairs02.trmdl` |
+| `0x59C3F953E386A916` | `objects_camp01.trmdl` |
+| `0x96631D44ECC80661` | `objects_area00_house01_a.trmdl` |
+
+The hash is the authoritative scene-to-model mapping. Scene names are not
+required: entries `0095` and `1521` place hundreds of objects with the name
+`none`.
 
 ## Placement schema (verified)
 
@@ -99,11 +129,32 @@ coordinates as strings (`"40"`, `"100"`); it is not a placement entry.
 Scene names combine an area or pack token with a resource name. In `0157`, the
 model hash equals FNV-1a 64 of the suffix `ground_mountain01_tengan`. That is
 not universal: statue and bonfire scenes share one hash per model family and do
-not match the visible name, so treat the hash as opaque. The viewer resolves a
-scene to a TRMDL by stripping `areaNN_`, `sNN_`, trailing `_NN`, and `bgparts_`,
-then matching the result against mesh paths and material names. This places
-`ha_area00_s02` (mountain) and `ha_area04` (buildings, stairs) but is unverified
-for other packs.
+not match the visible name, so treat the hash as opaque.
+
+The viewer resolves `ModelHash` through entry `0081` and loads the packed TRMDL.
+This covers unnamed scenes and shared models reused across area packs. For
+scenes outside the catalog (NPC/event/effect data), the viewer skips the scene;
+a name-based fallback is no longer used for static objects.
+
+The viewer assigns ownership per **placement table**, because a table can mix
+areas and because a model's path token names its origin, not its placement:
+
+1. The table area is the highest-scoring scene-name `areaNN` / `areaNN_sNN`
+   token; when names are absent, the catalog path token is used.
+2. A sub-area token with an interior `room_*` model stays a sub-area. A
+   sub-area token without a room is an outdoor feature pack and folds into its
+   base area (`area00_s02` → `area00`).
+3. A base area includes tables whose area is exactly that base area. For a mixed
+   sub-area table that contains a room, only named scenes whose token matches the
+   base area are included (for example the outdoor mountain in a room's table).
+4. A sub-area load includes only tables whose area is exactly that sub-area.
+5. Tables with no area token fall back per scene: a matching scene-name token,
+   then node-Y/heightmap proximity (12 units) for generic models.
+
+Height-matched nodes are placed individually only when they pass the terrain
+check. Vista shells (`*_vista*`) are skipped because the viewer already draws
+the heightmap terrain. Catalog paths remain resource identities; they do not
+decide placement area.
 
 ## Transform application
 
@@ -122,7 +173,7 @@ vertices and bounds are correct. Scene placement is implemented in
 
 - Scene field 5 in the 6-field variant.
 - Node fields 3–6 (empty vectors in every observed node).
-- Scene-to-model-pack resolution and resource-name matching.
+- Entry `0091` building-layout schema and whether it adds objects not covered by `0095`.
 - Visibility-group semantics (`FEVE_VISIBLE_*`) and streaming cells.
 - Yaw sign and coordinate handedness for the final transform.
 - Scene flag (field 3) semantics; distinction between model and event scenes.

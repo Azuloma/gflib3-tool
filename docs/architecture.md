@@ -9,6 +9,7 @@
 | `Nxa.GFlib3.Core` | `core/Nxa.GFlib3.Core` | Format readers, containers, shared models |
 | `Nxa.GFlib3.Cli` | `core/Nxa.GFlib3.Cli` | Command-line inspection and extraction |
 | `Nxa.GFlib3.Core.Tests` | `tests/Nxa.GFlib3.Core.Tests` | Unit and fixture tests |
+| `Nxa.GFlib3.Render.Tests` | `tests/Nxa.GFlib3.Render.Tests` | Dump-gated scene-loading regression tests |
 | `Nxa.GFlib3.Native` | `core/Nxa.GFlib3.Native` | C ABI shim over the vendored `ooz` Kraken decoder (CMake) |
 | `Nxa.GFlib3.Render` | `render/Nxa.GFlib3.Render` | Desktop viewer/editor using Silk.NET + ImGui.NET |
 

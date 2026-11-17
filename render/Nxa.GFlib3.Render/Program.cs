@@ -86,8 +86,12 @@ if (options.LoadCheck)
     Console.WriteLine($"textures:    {scene.Textures.Count}");
     Console.WriteLine($"vertices:    {scene.VertexCount:N0}");
     Console.WriteLine($"indices:     {scene.IndexCount:N0}");
-    Console.WriteLine($"room min:    {roomMin.X:F2}, {roomMin.Y:F2}, {roomMin.Z:F2}");
-    Console.WriteLine($"room max:    {roomMax.X:F2}, {roomMax.Y:F2}, {roomMax.Z:F2}");
+    if (scene.RoomMeshes.Count > 0)
+    {
+        Console.WriteLine($"room min:    {roomMin.X:F2}, {roomMin.Y:F2}, {roomMin.Z:F2}");
+        Console.WriteLine($"room max:    {roomMax.X:F2}, {roomMax.Y:F2}, {roomMax.Z:F2}");
+    }
+
     Console.WriteLine($"min:         {bounds.Min.X:F2}, {bounds.Min.Y:F2}, {bounds.Min.Z:F2}");
     Console.WriteLine($"max:         {bounds.Max.X:F2}, {bounds.Max.Y:F2}, {bounds.Max.Z:F2}");
 

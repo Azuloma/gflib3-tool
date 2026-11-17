@@ -113,16 +113,16 @@ public sealed class FieldScene
         return new BoundingBox(min, max);
     }
 
-    public int FindMaterial(string? name)
+    public int FindMaterialByKey(string? key)
     {
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(key))
         {
             return -1;
         }
 
         for (int i = 0; i < Materials.Count; i++)
         {
-            if (string.Equals(Materials[i].Name, name, StringComparison.Ordinal))
+            if (string.Equals(Materials[i].Key, key, StringComparison.Ordinal))
             {
                 return i;
             }
@@ -179,6 +179,8 @@ public sealed class SceneMesh
 
 public sealed class SceneMaterial
 {
+    public string Key { get; init; } = string.Empty;
+
     public required string Name { get; init; }
 
     public int BaseColorTexture { get; init; } = -1;
@@ -186,6 +188,9 @@ public sealed class SceneMaterial
     public int NormalTexture { get; init; } = -1;
 
     public int AmbientOcclusionTexture { get; init; } = -1;
+
+    /// <summary>Multiplier for untextured surfaces; water gets a blue fallback.</summary>
+    public Vector3 Tint { get; init; } = Vector3.One;
 }
 
 public sealed class SceneTexture

@@ -473,7 +473,7 @@ internal sealed class SceneRenderer : IDisposable
             _shader.SetInt("uAlphaTest", 0);
         }
 
-        _shader.SetVector3("uTint", Vector3.One);
+        _shader.SetVector3("uTint", material?.Tint ?? Vector3.One);
     }
 
     private static Vector3 ToVector(Vector3f value) => new(value.X, value.Y, value.Z);

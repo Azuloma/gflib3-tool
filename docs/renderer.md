@@ -1,11 +1,11 @@
 # Field viewer (`Nxa.GFlib3.Render`)
 
 Status: Stage 4b. The project loads one field area, renders the heightmap
-terrain, one room model with BNTX base-color textures, scene-table placements
-from `resident_release`, and vegetation instances from the terrain manifest. The
-area and model packs can be switched at runtime from the Project panel. The UI is
-a dockable Dear ImGui shell with English/Japanese labels. Editing controls are
-visible but disabled.
+terrain, one room model with BNTX base-color textures, scene-table objects
+resolved through the `resident_release` model catalog, and vegetation instances
+from the terrain manifest. The area and model packs can be switched at runtime
+from the Project panel. The UI is a dockable Dear ImGui shell with
+English/Japanese labels. Editing controls are visible but disabled.
 
 ## Project
 
@@ -53,10 +53,12 @@ Options:
    Files are resolved by the FNV-1a path hash of
    `bin/field/model/pack/<name>`.
 3. Load **one** TRMDL: the first model whose mesh/material name contains
-   `--mesh`; otherwise the first model whose mesh path contains `room_`.
-   A model pack can contain many unrelated models (area `s02` has a mountain,
-   five event objects, a room, and an irori); merging them at the origin produced
-   overlapping geometry and made textures appear wrong.
+   `--mesh`; otherwise the first model whose mesh path contains `room_`. A base
+   area pack (`ha_areaNN` as both area and model pack) skips this by default, so
+   its interior room does not appear at the origin; select a sub-pack or pass
+   `--mesh` to preview one. A model pack can contain many unrelated models (area
+   `s02` has a mountain, five event objects, a room, and an irori); merging them
+   at the origin produced overlapping geometry and made textures appear wrong.
 4. For each LOD group, keep only non-`_lodN` mesh paths. Plants list every LOD
    in one group (`entries=0,1,2`); using all three overlapped the low-detail
    billboards with LOD0.
@@ -75,12 +77,17 @@ Options:
    Decode `SplatAlpha` slices 0/1 as the four-plus-three layer weights and
    `SplatColor0..6` as albedo; tiling is `SplatST0..6 × 64` by default
    (`--terrain-tile-scale`, also a live Project-panel slider).
-10. Scan `resident_release.gfpak` with `ResidentSceneFile.FindInArchive`, keep
-    scenes whose name starts with `areaNN_` or `ha_areaNN_`, resolve the
-    resource name against TRMDL mesh/material names in the selected model pack,
-    and instantiate each node's SRT (`T * R_y(yaw) * S`). Resource matching
-    trims trailing `_NN` instance numbers and the `bgparts_` prefix. NPC, event,
-    effect, and visibility scenes are skipped.
+10. Open `resident_release.gfpak`, parse entry `0081` as a `ModelHash → TRMDL`
+    catalog, and scan the placement tables with `ResidentSceneFile.FindInArchive`.
+    Resolve every scene by `ModelHash` (names are optional) and load the packed
+    TRMDL from the base area pack, the selected model pack, the area sub-packs,
+    or another base area pack for shared models. Instantiate each node's SRT
+    (`T * R_y(yaw) * S`). Ownership is decided per placement table from scene
+    names and catalog tokens; interior sub-area tables stay separate, while
+    outdoor sub-area packs fold into the base area. Tables with no token fall
+    back to node-Y/heightmap proximity. Vista shells are skipped because the
+    terrain grid already covers them. Scenes absent from the catalog
+    (NPC/event/effect data) are skipped.
 
 The terrain pack's logical folder is
 `bin/field/terrain/<area>/terrain/`; room packs use `bin/field/model/pack/`.
@@ -101,7 +108,8 @@ a complete `FieldScene`, then creates a new `SceneRenderer`, disposes the previo
 renderer, replaces the scene, reframes the camera, and reports the loaded area in
 the status bar. A failed load keeps the current scene and renderer, appends an
 `error:` line to the Console, and shows `Load failed: <area>`. The UI is
-unresponsive during the load (roughly 4 s for area 04 on the test machine).
+unresponsive during the load (roughly 9 s for area 04 and 12 s for area 00 on
+the test machine, dominated by scene objects and their textures).
 
 ## Rendering
 
@@ -119,6 +127,8 @@ unresponsive during the load (roughly 4 s for area 04 on the test machine).
   initially planned, but produced incorrectly transformed geometry in the
   current GL path; per-instance model matrices are correct and fast enough for
   the observed counts (60 in area 00, 2,204 in area 02).
+- Untextured water materials use a blue fallback tint. Vista shells (`*_vista*`)
+  are not placed because the heightmap terrain already covers them.
 - The free-fly camera is Y-up: right mouse look, WASD, Q/E, Shift sprint, F
   frame. Default framing focuses the terrain bounds; F frames the room or
   vegetation selection.
@@ -145,14 +155,17 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 
 ## Known limitations
 
-- Only the selected model pack is searched for scene models. Areas whose models
-  live in another pack (for example an interior sub-pack) leave those scenes
-  unplaced until the matching model pack is loaded.
-- Scene-name to model matching is heuristic: it strips `areaNN_`, `sNN_`,
-  trailing `_NN`, and `bgparts_` prefixes. Background structures in
-  `ha_area00_s02` and `ha_area04` resolve; other packs are unverified.
+- Scene models resolve through the resident catalog and are searched across the
+  base area packs, selected pack, area sub-packs, and `resident_bg_parts_model`.
+  Some scene packs reference models with buffers that are absent or not Trinity
+  (for example `wall_area00_02.trmbf`), so a few scenes stay unresolved.
+- Placement-table ownership is inferred from dominant scene/catalog tokens, then
+  per-scene name or 12-unit heightmap tolerance for tokenless tables. Mixed tables
+  that contain both an interior and outdoor scenes are handled by including only
+  named base-area scenes from the interior table.
 - Terrain albedo is splatted; normal maps, the hole map, detail grass,
-  collisions, and event/NPC scenes are not rendered.
+  collisions, and event/NPC scenes are not rendered. Areas with no splat weight
+  fall back to a flat green terrain color.
 - The 16 MB buffers (entries 6–8) are sparse masks; their role is unresolved.
 - Only one room TRMDL is loaded. Selecting a room sub-pack such as
   `ha_area00_s07` shows that interior at the origin.

@@ -37,6 +37,18 @@ internal sealed class GfpakPack : IDisposable
         return _archive.TryGetEntryByPathHash(hash, out GfpakEntry? entry) ? entry : null;
     }
 
+    /// <summary>Resolves an entry by a full virtual path, ignoring the logical folder.</summary>
+    public GfpakEntry? FindPath(string fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath))
+        {
+            return null;
+        }
+
+        ulong hash = Fnv1a64.Hash(fullPath);
+        return _archive.TryGetEntryByPathHash(hash, out GfpakEntry? entry) ? entry : null;
+    }
+
     public byte[] Read(GfpakEntry entry) => _archive.ReadEntry(entry);
 
     public TerrainManifest FindManifest() => TerrainManifest.FindInArchive(_archive, out _);

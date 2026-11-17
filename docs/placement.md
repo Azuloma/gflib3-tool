@@ -1,9 +1,10 @@
-# Field object placement (`.trins` / `SrtInstanceBuffer`)
+﻿# Field object placement (`.trins` / `SrtInstanceBuffer`)
 
 Status: verified against the base terrain packs for areas 00–06 and 11. The
 placement data is **vegetation instancing**, not a general scene graph: trees,
 shrubs, flowers, and grass clumps are listed as SRT instances and referenced by
-terrain manifests. Static map props are baked into room models.
+terrain manifests. Static map props use the resident scene tables described in
+`docs/scene-layout.md`; they are not `.trins` instances.
 
 Investigated example: `RomFS/bin/archive/field/terrain/ha_area00.gfpak`.
 
@@ -173,7 +174,8 @@ instances inside those entries.
 - `archive/field/model/pack/ha_areaNN*.gfpak` room models contain TRMDL/TRMSH/
   TRMBF/TRMTR/TRSKL and BNTX only.
 - `resident_release.gfpak`, `resident_bg_parts_model.gfpak`, and the area room
-  packs contain no `.trins` or `SrtInstanceBuffer` strings.
+  packs contain no `.trins` or `SrtInstanceBuffer` strings. `resident_release`
+  instead carries scene placement tables and the model catalog.
 - In `ha_area00_s07`, all 43 TRSKL node transforms are identity
   (scale 1, rotation 0, translation 0). Props are baked into room vertices, not
   instanced.
