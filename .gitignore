@@ -1,2 +1,10 @@
 /AGENTS.md
 /.agents/
+/analysis/
+
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+TestResults/

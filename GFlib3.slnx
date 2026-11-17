@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/core/">
+    <Project Path="core/Nxa.GFlib3.Cli/Nxa.GFlib3.Cli.csproj" />
+    <Project Path="core/Nxa.GFlib3.Core/Nxa.GFlib3.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nxa.GFlib3.Core.Tests/Nxa.GFlib3.Core.Tests.csproj" />
+  </Folder>
+</Solution>
