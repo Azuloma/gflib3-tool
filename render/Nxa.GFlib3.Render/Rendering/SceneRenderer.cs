@@ -56,6 +56,7 @@ internal sealed class SceneRenderer : IDisposable
 
         uniform sampler2D uBaseColor;
         uniform int uHasBaseColor;
+        uniform int uAlphaTest;
         uniform vec3 uLightDirection;
         uniform vec3 uTint;
 
@@ -66,7 +67,13 @@ internal sealed class SceneRenderer : IDisposable
             vec3 albedo = uTint * vColor.rgb;
             if (uHasBaseColor != 0)
             {
-                albedo *= texture(uBaseColor, vTexCoord).rgb;
+                vec4 sampled = texture(uBaseColor, vTexCoord);
+                if (uAlphaTest != 0 && sampled.a < 0.5)
+                {
+                    discard;
+                }
+
+                albedo *= sampled.rgb;
             }
 
             vec3 normal = normalize(vNormal);
@@ -250,11 +257,13 @@ internal sealed class SceneRenderer : IDisposable
         {
             _textures[texture].Bind(TextureUnit.Texture0);
             _shader.SetInt("uHasBaseColor", 1);
+            _shader.SetInt("uAlphaTest", 1);
         }
         else
         {
             _white.Bind(TextureUnit.Texture0);
             _shader.SetInt("uHasBaseColor", 0);
+            _shader.SetInt("uAlphaTest", 0);
         }
 
         _shader.SetVector3("uTint", Vector3.One);
@@ -289,6 +298,7 @@ internal sealed class SceneRenderer : IDisposable
         public List<Matrix4x4> Instances { get; set; } = [];
     }
 }
+
 
 
 

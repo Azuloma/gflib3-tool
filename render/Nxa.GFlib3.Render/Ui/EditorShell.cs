@@ -226,6 +226,7 @@ public sealed class EditorShell
 
         DrawKeyValue(_text.T("project.area"), _scene.AreaName);
         DrawKeyValue(_text.T("project.modelPack"), _scene.ModelPackName);
+        DrawKeyValue(_text.T("project.model"), _scene.RoomModelName);
         DrawKeyValue(_text.T("project.dump"), _scene.DumpRoot);
         ImGui.Separator();
         DrawKeyValue(_text.T("project.meshes"), _scene.RoomMeshes.Count.ToString(CultureInfo.InvariantCulture));

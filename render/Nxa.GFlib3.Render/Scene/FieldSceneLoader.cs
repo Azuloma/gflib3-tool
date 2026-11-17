@@ -16,7 +16,7 @@ public static class FieldSceneLoader
     private const string BntxMagic = "BNTX";
     private const int MaxTextureSize = 8192;
 
-    public static FieldScene Load(string dumpRoot, string area, string modelPackName)
+    public static FieldScene Load(string dumpRoot, string area, string modelPackName, string? meshFilter)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dumpRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
@@ -49,7 +49,7 @@ public static class FieldSceneLoader
         using var terrainPack = new GfpakPack(
             terrainPackPath, $"bin/field/terrain/{area}/terrain/");
 
-        LoadRoomModel(modelPack, scene);
+        LoadRoomModel(modelPack, scene, meshFilter);
         LoadVegetation(terrainPack, scene);
 
         scene.Messages.Insert(0, $"Loaded {area}: {scene.RoomMeshes.Count} room parts, "
@@ -57,7 +57,7 @@ public static class FieldSceneLoader
         return scene;
     }
 
-    private static void LoadRoomModel(GfpakPack pack, FieldScene scene)
+    private static void LoadRoomModel(GfpakPack pack, FieldScene scene, string? meshFilter)
     {
         var trmdls = new List<TrinityFile>();
 
@@ -88,11 +88,39 @@ public static class FieldSceneLoader
             return;
         }
 
+        TrinityFile selected = SelectModel(trmdls, meshFilter, scene);
+        string modelName = selected.Trmdl!.MeshPaths.Count > 0
+            ? selected.Trmdl.MeshPaths[0]
+            : Path.GetFileName(pack.ArchivePath);
+        scene.RoomModelName = modelName;
+        scene.Messages.Add($"model: {modelName}");
+
         var seenMeshes = new HashSet<string>(StringComparer.Ordinal);
-        foreach (TrinityFile trmdl in trmdls)
+        AddModelMeshes(pack, scene, selected.Trmdl, modelName, scene.RoomMeshes, seenMeshes);
+    }
+
+    private static TrinityFile SelectModel(List<TrinityFile> models, string? filter, FieldScene scene)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
         {
-            AddModelMeshes(pack, scene, trmdl.Trmdl!, "room", scene.RoomMeshes, seenMeshes);
+            return models[0];
         }
+
+        foreach (TrinityFile model in models)
+        {
+            TrmdlFile trmdl = model.Trmdl!;
+            bool matches = trmdl.MeshPaths.Any(
+                path => path.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                || trmdl.Materials.Any(
+                    material => material.Contains(filter, StringComparison.OrdinalIgnoreCase));
+            if (matches)
+            {
+                return model;
+            }
+        }
+
+        scene.Messages.Add($"warning: no model matched '{filter}'; using the first model.");
+        return models[0];
     }
 
     private static void LoadVegetation(GfpakPack pack, FieldScene scene)
@@ -434,4 +462,5 @@ public static class FieldSceneLoader
             && data[3] == (byte)BntxMagic[3];
     }
 }
+
 

@@ -14,6 +14,8 @@ public sealed class FieldScene
 
     public required string ModelPackName { get; init; }
 
+    public string RoomModelName { get; set; } = string.Empty;
+
     public required string DumpRoot { get; init; }
 
     public List<SceneMesh> RoomMeshes { get; } = [];

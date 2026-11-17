@@ -29,6 +29,7 @@ Options:
 | --- | --- |
 | `--area <name>` | Terrain pack name, default `ha_area00` |
 | `--model <name>` | Model pack inside `archive/field/model/pack`, default `ha_area00_s02` |
+| `--mesh <text>` | Load the first TRMDL whose mesh/material name contains `text` |
 | `--lang <en\|ja>` | UI language |
 | `--load-check` | Load the area, print counts and bounds, then exit |
 | `--smoke-test` | Render 90 frames, then exit |
@@ -45,15 +46,21 @@ Options:
    other entries are parsed as Trinity FlatBuffers and TRMDL files are grouped.
    Files are resolved by the FNV-1a path hash of
    `bin/field/model/pack/<name>`.
-3. For each LOD group, keep only non-`_lodN` mesh paths. Plants list every LOD
+3. Load **one** TRMDL: the first entry, or the first model whose mesh/material
+   name contains `--mesh`. A model pack can contain many unrelated models (area
+   `s02` has a mountain, five event objects, a room, and an irori); merging them
+   at the origin produced overlapping geometry and made textures appear wrong.
+4. For each LOD group, keep only non-`_lodN` mesh paths. Plants list every LOD
    in one group (`entries=0,1,2`); using all three overlapped the low-detail
    billboards with LOD0.
-4. Build geometry with `TrinityMeshBuilder` from the mesh's TRMBF buffer.
+5. Build geometry with `TrinityMeshBuilder` from the mesh's TRMBF buffer.
    A TRMSH's `BufferFilePath` resolves the exact `.trmbf` entry.
-5. Resolve TRMTR materials by name, then base-color, normal, and AO maps by the
+6. Resolve TRMTR materials by name, then base-color, normal, and AO maps by the
    material's texture slots. Base color is uploaded as RGBA8; normal/AO are
    loaded but not yet sampled by the shader.
-6. Find the terrain manifest with `TerrainManifest.FindInArchive`, load each
+7. Fragments whose base-color alpha is below 0.5 are discarded, which cuts out
+   leaf cards and other masked surfaces.
+8. Find the terrain manifest with `TerrainManifest.FindInArchive`, load each
    plant model from the terrain pack, and append all `.trins` matrices as
    `PlantInstance` records.
 
@@ -88,13 +95,18 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 
 ## Known limitations
 
+- **Field composition is not implemented.** The viewer loads one model pack and
+  one TRMDL from it, plus vegetation. It does not merge the other room/model
+  packs (`ha_area00_s01`, `s03_*`, `s06`, `s07`, `s09`, `s12_*`, `s16_*`), parse
+  their placement graph, or build the heightmap/detail terrain. Field
+  structures and terrain visible in-game are therefore missing. This is beyond
+  Stage 4's single-model shell and needs its own RE stage.
 - Terrain and vegetation world-coordinate alignment is not fully verified. In
-  `ha_area00`, the `s02` terrain spans about ±2,430 units with heights up to
+  `ha_area00`, the `s02` mountain spans about ±2,430 units with heights up to
   1,458, while vegetation translations are around x=445, z=650, y=60. The
   cluster appears to sit on the terrain in area 00, but the placement transform
-  or cell mapping for other areas is not yet confirmed. The viewer frames the
-  vegetation cluster by default.
-- Only one terrain/model pack pair is loaded. Selecting a room sub-pack such as
+  or cell mapping for other areas is not yet confirmed.
+- Only one model pack pair is loaded. Selecting a room sub-pack such as
   `ha_area00_s07` shows an interior while the vegetation remains elsewhere.
 - No skinning, animations, collision, terrain heightmap, or LOD switching.
 - No editor operations; Stage 5 adds selection, transforms, and export.

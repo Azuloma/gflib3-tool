@@ -65,5 +65,6 @@
   "lang.japanese": "日本語",
   "common.yes": "はい",
   "common.no": "いいえ",
-  "common.none": "(なし)"
+  "common.none": "(なし)",
+  "project.model": "モデル"
 }

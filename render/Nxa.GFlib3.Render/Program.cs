@@ -36,7 +36,7 @@ FieldScene scene;
 try
 {
     Console.WriteLine($"Loading {options.Area} with model pack {options.ModelPack}...");
-    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack);
+    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter);
 }
 catch (Exception ex) when (ex is IOException
     or InvalidDataException
@@ -120,6 +120,7 @@ static void PrintHelp()
           --dump <path>       Dump root (default: NXA_GF3_DUMP)
           --area <name>       Terrain pack, e.g. ha_area00
           --model <name>      Model pack inside bin/field/model/pack
+          --mesh <text>       Load the first model whose mesh/material name contains text
           --lang <en|ja>      UI language
           --load-check        Load the area and print counts, then exit
           --smoke-test        Render 90 frames, then exit
@@ -135,3 +136,4 @@ static void PrintHelp()
           RMB look, WASD move, Q/E down/up, Shift sprint, F frame
         """);
 }
+

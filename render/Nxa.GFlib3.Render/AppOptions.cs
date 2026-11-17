@@ -17,6 +17,8 @@ public sealed class AppOptions
 
     public string ModelPack { get; private set; } = DefaultModel;
 
+    public string? MeshFilter { get; private set; }
+
     public string Language { get; private set; } = "en";
 
     public bool LoadCheck { get; private set; }
@@ -53,6 +55,9 @@ public sealed class AppOptions
                     break;
                 case "--model" when i + 1 < args.Length:
                     options.ModelPack = args[++i];
+                    break;
+                case "--mesh" when i + 1 < args.Length:
+                    options.MeshFilter = args[++i];
                     break;
                 case "--lang" when i + 1 < args.Length:
                     options.Language = args[++i];
@@ -121,6 +126,7 @@ public sealed class AppOptions
 }
 
 public sealed class ShowHelpException : Exception;
+
 
 
 
