@@ -3,6 +3,8 @@
 Status: header, hash tables, and file table verified against the dump. Payload
 decompression verified. Name hashing and nested formats still under investigation.
 
+Implemented in `core/Nxa.GFlib3.Core/Formats/Gfpak` (`GfpakArchive`).
+
 Primary reference: pkNX `GFPack.cs` (structure cross-checked against 678 archives).
 All findings below were also confirmed directly on the dump. Promoted from the
 initial scratch notes in `analysis/`.

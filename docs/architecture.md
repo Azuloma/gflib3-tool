@@ -9,15 +9,15 @@
 | `Nxa.GFlib3.Core` | `core/Nxa.GFlib3.Core` | Format readers, containers, shared models |
 | `Nxa.GFlib3.Cli` | `core/Nxa.GFlib3.Cli` | Command-line inspection and extraction |
 | `Nxa.GFlib3.Core.Tests` | `tests/Nxa.GFlib3.Core.Tests` | Unit and fixture tests |
+| `Nxa.GFlib3.Native` | `core/Nxa.GFlib3.Native` | C ABI shim over the vendored `ooz` Kraken decoder (CMake) |
 
-All projects target `net9.0`. Build settings are centralized in
+All managed projects target `net9.0`. Build settings are centralized in
 `Directory.Build.props`; formatting rules live in `.editorconfig`.
 
 Planned:
 
 | Project | Path | Role |
 | --- | --- | --- |
-| `Nxa.GFlib3.Native` | `core/Nxa.GFlib3.Native` | C ABI shim over the vendored `ooz` Kraken decoder |
 | `Nxa.GFlib3.Render` | `render/Nxa.GFlib3.Render` | Desktop viewer/editor using Silk.NET + ImGui.NET |
 
 ## Dependency direction
@@ -41,12 +41,24 @@ required.
 ## Build
 
 ```powershell
+# Managed projects
 dotnet build GFlib3.slnx
 dotnet test GFlib3.slnx
+
+# Native Kraken decoder (MSVC, CMake)
+pwsh scripts/build-native.ps1
 ```
 
-Native components will be built separately and copied next to the CLI/render
-outputs; the build steps will be documented when Stage 1 lands.
+`scripts/build-native.ps1` builds `Nxa.GFlib3.Native.dll` from
+`core/Nxa.GFlib3.Native` and the vendored `ooz` sources, then copies it to
+`artifacts/native/`. The managed loader (`OodleKraken`) resolves the DLL from:
+
+1. the `NXA_GF3_NATIVE` environment variable,
+2. the application directory,
+3. an `artifacts/native/` directory found by walking up from the application
+   directory.
+
+All native output stays under `artifacts/`, which is gitignored.
 
 ## Conventions
 
