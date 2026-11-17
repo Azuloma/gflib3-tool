@@ -77,6 +77,12 @@ indices, material `room_area00_s07_01`, one declaration with stride 40 bytes:
 | 28 | TexCoord | `X32Y32Float` (48) | 8 |
 | 36 | Color | `R8G8B8A8UnsignedNormalized` (20) | 4 |
 
+The 4-component half formats (`W16X16Y16Z16Float` and
+`W32X32Y32Z32Float`) store components in **X, Y, Z, W** order despite the
+format name. For `mirror_low_shape` vertex 0 the measured values are
+normal `(1, 0, 0)`, tangent `(0, 0, -1, 1)`, matching a right-handed frame.
+Reading the first half as W yields a zero normal and a non-unit tangent.
+
 Mesh part: index count, index offset (in indices, not bytes), unlabelled field,
 material name, and vertex declaration index.
 
@@ -90,8 +96,34 @@ material name, and vertex declaration index.
 Each mesh buffer holds `IndexBuffer[]`, `VertexBuffer[]`, and `MorphTargets[]`;
 each buffer is a byte vector. The `ha_area00_s07` pack has 39 mesh buffers
 (260,964 index bytes and 1,595,176 vertex bytes), matching the 39 TRMSH meshes.
-Mapping is by order — treat as a hypothesis until a file with mismatched counts
-is found.
+Mapping is by order — verified for all 39 meshes in `ha_area00_s07` and both
+model sets in `ha_area00_s01`; still a hypothesis for packs with unequal
+counts.
+
+### Mesh building
+
+`TrinityMeshBuilder` produces `TrinityVertex[]`, a flat `uint[]` index list, and
+per-part ranges (`TrinitySubMesh`) with material names and bounds. It currently
+accepts one index buffer, one vertex buffer, and one vertex declaration per
+mesh; multi-part meshes are supported. Observed packs satisfy this:
+
+- `ha_area00_s07`: 39 meshes, 16-bit indices, one part each, strides 36 or 40.
+- `ha_area00_s01`: 3 meshes across two model sets; one room mesh has 32-bit
+  indices, 432,655 vertices, 924,645 indices, and 14 material parts.
+- `ha_area11`: 1 mesh, 2 parts.
+
+TRMSH bounds match the bounds computed from decoded vertices for many meshes
+(for example `mirror_low_shape`) but differ for some (for example
+`illust01_low_dup_shape`, `flowervase_low_shape`, `pin_low_shape`,
+`kushi_low_shape`) even though all TRSKL node transforms are identity. The
+runtime vertex positions are authoritative; the TRMSH bounds may describe
+source-mesh space or include unused geometry.
+
+Supported vertex formats: `X32Y32Z32Float`, `W32X32Y32Z32Float`,
+`W16X16Y16Z16Float`, `X32Y32Float`, `R8G8B8A8UnsignedNormalized`,
+`W8X8Y8Z8Unsigned`, `W16X16Y16Z16UnsignedNormalized`. Index formats 8, 16, and
+32-bit are supported; 64-bit is rejected.
+
 
 ## TRMTR
 
