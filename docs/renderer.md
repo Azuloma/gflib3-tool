@@ -68,6 +68,8 @@ Options:
    `PlantInstance` records.
 9. Build the terrain grid from the `TerrainMaterial` heightmap with
    `TerrainSurface`/`TerrainMeshBuilder` (`--terrain-stride` for previews).
+   Decode `SplatAlpha` slices 0/1 as the four-plus-three layer weights and
+   `SplatColor0..6` as albedo; tiling comes from `SplatST0..6`.
 10. Scan `resident_release.gfpak` with `ResidentSceneFile.FindInArchive`, keep
     scenes whose name starts with `areaNN_` or `ha_areaNN_`, resolve the
     resource name against TRMDL mesh/material names in the selected model pack,
@@ -84,9 +86,10 @@ Folder hashes include the trailing slash.
 - One shader: transform, vertex color, base-color texture, and a directional
   light plus ambient. Both System.Numerics matrices and instance matrices are
   uploaded for the column-vector convention.
-- Terrain is drawn as the heightmap grid with a flat green tint; splat layers
-  are not sampled yet. Scene-table placements share one GPU buffer per geometry
-  and draw with their SRT matrix.
+- Terrain uses a second shader that samples the two `SplatAlpha` control slices,
+  normalizes the seven layer weights, and blends `SplatColor0..6` with their
+  `SplatST` tiling. Scene-table placements share one GPU buffer per geometry and
+  draw with their SRT matrix.
 - Room meshes, placed meshes, terrain, and vegetation are drawn into an
   off-screen RGBA8 framebuffer with a 24-bit depth buffer; the Scene panel
   displays that texture.
@@ -117,9 +120,9 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 - Scene-name to model matching is heuristic: it strips `areaNN_`, `sNN_`,
   trailing `_NN`, and `bgparts_` prefixes. Background structures in
   `ha_area00_s02` and `ha_area04` resolve; other packs are unverified.
-- Splat layers, detail grass, collisions, and event/NPC scenes are not rendered.
-- Terrain is drawn with a flat tint; the 7-layer splat material and the 16 MB
-  weight buffers are not decoded yet.
+- Terrain albedo is splatted; normal maps, the hole map, detail grass,
+  collisions, and event/NPC scenes are not rendered.
+- The 16 MB buffers (entries 6–8) are sparse masks; their role is unresolved.
 - Only one room TRMDL is loaded. Selecting a room sub-pack such as
   `ha_area00_s07` shows that interior at the origin.
 - No skinning, animations, collision, or LOD switching.

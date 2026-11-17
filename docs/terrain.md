@@ -8,14 +8,14 @@ Status: heightmap format, height scale, and world mapping verified against areas
 `RomFS/bin/archive/field/terrain/ha_areaNN.gfpak`. Entries are unnamed; tools
 resolve them by FNV-1a 64 path hashes and by structural material detection.
 
-The terrain material is a FlatBuffer `.trmtr` (3,192–3,556 bytes) whose material
+The terrain material is a FlatBuffer `.trmtr` (3,192 E,556 bytes) whose material
 is named `TerrainMaterial`. It references 17 textures:
 
 | Name | Role | Format |
 | --- | --- | --- |
 | `HeightMap` | base height field | R16/R32 FLOAT, 1025² or 2049² |
 | `HeightNormalMap` | terrain normal | R10G10B10A2 UNORM, 1025² |
-| `SplatAlpha` | layer weight mask | BC7 UNORM, 1024² |
+| `SplatAlpha` | 2-slice weight control | BC7 UNORM, 1024² × 2 slices |
 | `SplatColor0..6` | layer albedo | BC7 SRGB, 256² with 9 mips |
 | `SplatNormal0..6` | layer normal | BC5 UNORM, 256² |
 
@@ -64,22 +64,35 @@ The area-05 temple statues sit at `y=59` while the surrounding terrain sample is
 `109.594`; the temple is an interior/underground space, so this is not evidence
 against the mapping.
 
-Heightmaps of 2049² cover multiple 1025² cells (for example 2×2 cells sharing
+Heightmaps of 2049² cover multiple 1025² cells (for example 2ÁE cells sharing
 edges). The mapping stays one unit per sample.
 
 ## Splat layers
 
-`SplatAlpha` is a 1024² BC7 texture, but the material declares seven layers,
-so four BC7 channels cannot hold all weights. Entries 2, 3, 6, 7, and 8 in
-`ha_area00` (3.4 MB, 12.6 MB, and three 16 MB payloads) are not textures:
+`SplatAlpha` is a **2-slice array texture** (BC7 UNORM, 1024² per slice), matching
+the shader value `ControlTextureNum = Two`. Each slice holds four 8-bit weights:
 
-- entry 3 is a terrain descriptor with `1025 × 185 × 1025`, seven named layers,
+| Slice | R | G | B | A |
+| --- | --- | --- | --- | --- |
+| 0 | SplatColor0 (cliff) | SplatColor1 (grass01) | SplatColor2 (grass02) | SplatColor3 (sand01) |
+| 1 | SplatColor4 (sand03) | SplatColor5 (gravel02) | SplatColor6 (gravel01) | unused |
+
+Weights are normalized after sampling and blended across the seven albedo
+textures. Per-layer UV tiling comes from the material's `SplatST0..6` vec4
+parameters (the X component: 4.0, 2.5, 2.5, 3.0, 3.0, 2.0, 2.5 for area 00).
+
+Observed channel statistics for area 00 (`bntx stats`): slice 0 has
+mean R/G/B/A = 126/101/16/0.2, slice 1 has 6.2/2.6/2.4/0. That matches a
+rock/grass/sand mix with sparse gravel layers.
+
+Entries 2, 3, 6, 7, and 8 in `ha_area00` (3.4 MB, 12.6 MB, and three 16 MB
+payloads) are not albedo textures:
+
+- entry 3 is a terrain descriptor with `1025 ÁE185 ÁE1025`, seven named layers,
   and quad/vertex counts;
-- entries 6–8 are 16 MB flat buffers with a small metadata trailer
-  (`2048 × 2048 × 4` bytes per texel).
-
-These are likely splat weight or height caches. Their exact layout is
-unresolved.
+- entries 6 E are 16 MB flat buffers (`2048 ÁE2048 ÁE4` bytes per texel) that are
+  mostly zero with sparse 255 values. They are masks, not splat weights; their
+  role (holes, water, collision?) is unresolved.
 
 ## Mesh building
 
@@ -100,10 +113,10 @@ terrain mesh <gfpak> [--stride N]        vertex/index counts and bounds
 
 ## Open questions
 
-- Splat weight layout: how seven layers map to `SplatAlpha` and entries 6–8.
+- Splat normal maps and the hole map (`EnableHoleMap`) are not sampled yet.
+- Exact `SplatST` units, sRGB handling, and V orientation of splat textures.
 - Terrain descriptor entry 3: layer tables, quad counts, and remaining fields.
 - World offset and streaming for multi-cell and `terrain_X_Z_*` packs.
-- Splat texture orientation (V direction) and channel order at render time.
-- Detail groups: procedural grass scatter rules and the 17–18 trailing
+- Detail groups: procedural grass scatter rules and the 17 E8 trailing
   parameters.
 - Entry 2 (`TAG0` / `SDKV` container): role still unidentified.

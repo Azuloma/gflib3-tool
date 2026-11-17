@@ -29,6 +29,21 @@ public sealed class FieldScene
 
     public TerrainSurface? TerrainSurface { get; set; }
 
+    /// <summary>Seven blended terrain albedo layers (SplatColor0..6).</summary>
+    public List<SceneTexture> TerrainLayers { get; } = [];
+
+    /// <summary>RGBA weights for layers 0–3 (SplatAlpha array slice 0).</summary>
+    public SceneTexture? TerrainControl0 { get; set; }
+
+    /// <summary>RGBA weights for layers 4–7 (SplatAlpha array slice 1).</summary>
+    public SceneTexture? TerrainControl1 { get; set; }
+
+    public float[] TerrainLayerScales { get; } = [1f, 1f, 1f, 1f, 1f, 1f, 1f];
+
+    public bool HasTerrainSplat => TerrainLayers.Count == 7
+        && TerrainControl0 is not null
+        && TerrainControl1 is not null;
+
     public List<SceneMaterial> Materials { get; } = [];
 
     public List<SceneTexture> Textures { get; } = [];

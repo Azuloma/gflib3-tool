@@ -89,8 +89,92 @@ internal sealed class SceneRenderer : IDisposable
         }
         """;
 
+    private const string TerrainVertexShader = """
+        #version 330 core
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec3 aNormal;
+        layout(location = 2) in vec2 aTexCoord;
+
+        uniform mat4 uViewProjection;
+
+        out vec3 vNormal;
+        out vec2 vTexCoord;
+
+        void main()
+        {
+            vNormal = aNormal;
+            vTexCoord = aTexCoord;
+            gl_Position = uViewProjection * vec4(aPosition, 1.0);
+        }
+        """;
+
+    private const string TerrainFragmentShader = """
+        #version 330 core
+        in vec3 vNormal;
+        in vec2 vTexCoord;
+
+        uniform sampler2D uAlbedo0;
+        uniform sampler2D uAlbedo1;
+        uniform sampler2D uAlbedo2;
+        uniform sampler2D uAlbedo3;
+        uniform sampler2D uAlbedo4;
+        uniform sampler2D uAlbedo5;
+        uniform sampler2D uAlbedo6;
+        uniform sampler2D uControl0;
+        uniform sampler2D uControl1;
+        uniform float uLayerScales[7];
+        uniform vec3 uLightDirection;
+
+        out vec4 FragColor;
+
+        void main()
+        {
+            vec4 c0 = texture(uControl0, vTexCoord);
+            vec4 c1 = texture(uControl1, vTexCoord);
+            float w0 = c0.r;
+            float w1 = c0.g;
+            float w2 = c0.b;
+            float w3 = c0.a;
+            float w4 = c1.r;
+            float w5 = c1.g;
+            float w6 = c1.b;
+            float total = w0 + w1 + w2 + w3 + w4 + w5 + w6;
+
+            vec3 albedo;
+            if (total < 0.001)
+            {
+                albedo = vec3(0.35, 0.40, 0.30);
+            }
+            else
+            {
+                albedo = (
+                    w0 * texture(uAlbedo0, vTexCoord * uLayerScales[0]).rgb
+                  + w1 * texture(uAlbedo1, vTexCoord * uLayerScales[1]).rgb
+                  + w2 * texture(uAlbedo2, vTexCoord * uLayerScales[2]).rgb
+                  + w3 * texture(uAlbedo3, vTexCoord * uLayerScales[3]).rgb
+                  + w4 * texture(uAlbedo4, vTexCoord * uLayerScales[4]).rgb
+                  + w5 * texture(uAlbedo5, vTexCoord * uLayerScales[5]).rgb
+                  + w6 * texture(uAlbedo6, vTexCoord * uLayerScales[6]).rgb
+                ) / total;
+            }
+
+            vec3 normal = normalize(vNormal);
+            if (!gl_FrontFacing)
+            {
+                normal = -normal;
+            }
+
+            float diffuse = max(dot(normal, normalize(uLightDirection)), 0.0);
+            FragColor = vec4(albedo * (0.55 + 0.75 * diffuse), 1.0);
+        }
+        """;
+
     private readonly GL _gl;
     private readonly ShaderProgram _shader;
+    private readonly ShaderProgram _terrainShader;
+    private readonly List<GlTexture> _terrainAlbedo = [];
+    private readonly GlTexture? _terrainControl0;
+    private readonly GlTexture? _terrainControl1;
     private readonly List<GlTexture> _textures = [];
     private readonly List<GlMesh> _roomMeshes = [];
     private readonly List<PlacedRender> _placed = [];
@@ -116,6 +200,7 @@ internal sealed class SceneRenderer : IDisposable
     {
         _gl = gl;
         _shader = new ShaderProgram(gl, VertexShader, FragmentShader);
+        _terrainShader = new ShaderProgram(gl, TerrainVertexShader, TerrainFragmentShader);
         _white = new GlTexture(gl, new BntxImage(1, 1, [255, 255, 255, 255]));
         _showPlants = showPlants;
         _showTextures = showTextures;
@@ -136,6 +221,17 @@ internal sealed class SceneRenderer : IDisposable
         if (scene.Terrain is not null)
         {
             _terrain = new GlMesh(gl, scene.Terrain);
+        }
+
+        if (scene.HasTerrainSplat)
+        {
+            foreach (SceneTexture layer in scene.TerrainLayers)
+            {
+                _terrainAlbedo.Add(new GlTexture(gl, layer.Image));
+            }
+
+            _terrainControl0 = new GlTexture(gl, scene.TerrainControl0!.Image);
+            _terrainControl1 = new GlTexture(gl, scene.TerrainControl1!.Image);
         }
 
         var placedBuffers = new Dictionary<TrinityMeshGeometry, GlMesh>(ReferenceEqualityComparer.Instance);
@@ -200,9 +296,10 @@ internal sealed class SceneRenderer : IDisposable
         _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         Matrix4x4 viewProjection = camera.View * FreeFlyCamera.Projection((float)width / height, FarPlane);
+        Vector3 lightDirection = Vector3.Normalize(new Vector3(-0.4f, 0.9f, 0.35f));
         _shader.Use();
         _shader.SetMatrix("uViewProjection", viewProjection);
-        _shader.SetVector3("uLightDirection", Vector3.Normalize(new Vector3(-0.4f, 0.9f, 0.35f)));
+        _shader.SetVector3("uLightDirection", lightDirection);
         _shader.SetInt("uBaseColor", 0);
         _shader.SetMatrix("uModel", Matrix4x4.Identity);
 
@@ -219,18 +316,6 @@ internal sealed class SceneRenderer : IDisposable
                 _roomMeshes[i].Draw(mesh.PartIndexStart, mesh.PartIndexCount);
                 triangles += mesh.PartIndexCount / 3;
             }
-        }
-
-        if (_showTerrain && _terrain is not null)
-        {
-            _shader.SetInt("uInstanced", 0);
-            _shader.SetMatrix("uModel", Matrix4x4.Identity);
-            _white.Bind(TextureUnit.Texture0);
-            _shader.SetInt("uHasBaseColor", 0);
-            _shader.SetInt("uAlphaTest", 0);
-            _shader.SetVector3("uTint", new Vector3(0.42f, 0.53f, 0.34f));
-            _terrain.Draw(0, _terrain.IndexCount);
-            triangles += _terrain.IndexCount / 3;
         }
 
         if (_showScene)
@@ -266,6 +351,48 @@ internal sealed class SceneRenderer : IDisposable
             }
         }
 
+        if (_showTerrain && _terrain is not null)
+        {
+            if (scene.HasTerrainSplat
+                && _terrainAlbedo.Count == 7
+                && _terrainControl0 is not null
+                && _terrainControl1 is not null)
+            {
+                _terrainShader.Use();
+                _terrainShader.SetMatrix("uViewProjection", viewProjection);
+                _terrainShader.SetVector3("uLightDirection", lightDirection);
+
+                for (int i = 0; i < _terrainAlbedo.Count; i++)
+                {
+                    _terrainAlbedo[i].Bind((TextureUnit)((int)TextureUnit.Texture0 + i));
+                    _terrainShader.SetInt($"uAlbedo{i}", i);
+                }
+
+                _terrainControl0.Bind(TextureUnit.Texture7);
+                _terrainShader.SetInt("uControl0", 7);
+                _terrainControl1.Bind(TextureUnit.Texture8);
+                _terrainShader.SetInt("uControl1", 8);
+                _terrainShader.SetFloatArray("uLayerScales[0]", scene.TerrainLayerScales);
+
+                _terrain.Draw(0, _terrain.IndexCount);
+            }
+            else
+            {
+                _shader.Use();
+                _shader.SetMatrix("uViewProjection", viewProjection);
+                _shader.SetVector3("uLightDirection", lightDirection);
+                _shader.SetInt("uInstanced", 0);
+                _shader.SetMatrix("uModel", Matrix4x4.Identity);
+                _white.Bind(TextureUnit.Texture0);
+                _shader.SetInt("uHasBaseColor", 0);
+                _shader.SetInt("uAlphaTest", 0);
+                _shader.SetVector3("uTint", new Vector3(0.42f, 0.53f, 0.34f));
+                _terrain.Draw(0, _terrain.IndexCount);
+            }
+
+            triangles += _terrain.IndexCount / 3;
+        }
+
         _shader.SetMatrix("uModel", Matrix4x4.Identity);
 
         _gl.BindVertexArray(0);
@@ -288,6 +415,15 @@ internal sealed class SceneRenderer : IDisposable
         }
 
         _terrain?.Dispose();
+
+        foreach (GlTexture texture in _terrainAlbedo)
+        {
+            texture.Dispose();
+        }
+
+        _terrainControl0?.Dispose();
+        _terrainControl1?.Dispose();
+        _terrainShader.Dispose();
 
         foreach (GlMesh mesh in _placedBuffers)
         {

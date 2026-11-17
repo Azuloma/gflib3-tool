@@ -59,6 +59,28 @@ internal sealed class ShaderProgram : IDisposable
 
     public void SetFloat(string name, float value) => _gl.Uniform1(Location(name), value);
 
+    public void SetFloatArray(string name, ReadOnlySpan<float> values)
+    {
+        if (values.IsEmpty)
+        {
+            return;
+        }
+
+        int location = Location(name);
+        if (location < 0)
+        {
+            return;
+        }
+
+        unsafe
+        {
+            fixed (float* pointer = values)
+            {
+                _gl.Uniform1(location, (uint)values.Length, pointer);
+            }
+        }
+    }
+
     public void SetVector3(string name, Vector3 value) => _gl.Uniform3(Location(name), value);
 
     public void Dispose()

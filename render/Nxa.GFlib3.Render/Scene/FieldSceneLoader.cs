@@ -159,11 +159,135 @@ public static class FieldSceneLoader
             scene.Messages.Add(
                 $"terrain: {surface.Heightmap.Width}x{surface.Heightmap.Height}, "
                 + $"scale {surface.HeightScale:0.###}, {mesh.Vertices.Length:N0} vertices.");
+
+            LoadTerrainSplat(pack, scene, material);
         }
         catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or IOException)
         {
             scene.Messages.Add($"warning: terrain unavailable: {ex.Message}");
         }
+    }
+
+    private static void LoadTerrainSplat(GfpakPack pack, FieldScene scene, TerrainMaterialSet material)
+    {
+        string[] layerNames =
+        [
+            "SplatColor0",
+            "SplatColor1",
+            "SplatColor2",
+            "SplatColor3",
+            "SplatColor4",
+            "SplatColor5",
+            "SplatColor6",
+        ];
+
+        var layers = new List<SceneTexture>(layerNames.Length);
+        for (int i = 0; i < layerNames.Length; i++)
+        {
+            string? file = material.GetTexturePath(layerNames[i]);
+            if (file is null)
+            {
+                scene.Messages.Add($"warning: terrain layer '{layerNames[i]}' is not declared.");
+                return;
+            }
+
+            BntxTexture? texture = ResolveTerrainTexture(pack, material, file, layerNames[i], scene);
+            if (texture is null)
+            {
+                return;
+            }
+
+            try
+            {
+                BntxImage image = BntxTextureDecoder.Decode(texture, 0);
+                layers.Add(new SceneTexture
+                {
+                    Name = texture.Name,
+                    Image = image,
+                    IsSrgb = texture.IsSrgb,
+                });
+            }
+            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+            {
+                scene.Messages.Add($"warning: terrain layer '{file}' could not be decoded: {ex.Message}");
+                return;
+            }
+        }
+
+        string? splatFile = material.GetTexturePath(TerrainMaterialSet.SplatAlphaTexture);
+        if (splatFile is null)
+        {
+            scene.Messages.Add("warning: terrain SplatAlpha is not declared.");
+            return;
+        }
+
+        BntxTexture? splat = ResolveTerrainTexture(
+            pack, material, splatFile, TerrainMaterialSet.SplatAlphaTexture, scene);
+        if (splat is null)
+        {
+            return;
+        }
+
+        if (splat.ArrayCount < 2)
+        {
+            scene.Messages.Add($"warning: terrain SplatAlpha has {splat.ArrayCount} array slices; expected 2.");
+            return;
+        }
+
+        try
+        {
+            scene.TerrainControl0 = new SceneTexture
+            {
+                Name = splat.Name + " [0]",
+                Image = BntxTextureDecoder.Decode(splat, 0, 0),
+                IsSrgb = false,
+            };
+            scene.TerrainControl1 = new SceneTexture
+            {
+                Name = splat.Name + " [1]",
+                Image = BntxTextureDecoder.Decode(splat, 0, 1),
+                IsSrgb = false,
+            };
+        }
+        catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+        {
+            scene.Messages.Add($"warning: terrain SplatAlpha could not be decoded: {ex.Message}");
+            return;
+        }
+
+        for (int i = 0; i < layers.Count; i++)
+        {
+            TrmtrVec4Parameter? parameter = material.Material.Vec4Parameters.FirstOrDefault(
+                item => item.Name == $"SplatST{i}");
+            float scale = parameter?.Value.X ?? 1f;
+            scene.TerrainLayerScales[i] = scale > 0 ? scale : 1f;
+        }
+
+        scene.TerrainLayers.AddRange(layers);
+        scene.Messages.Add($"terrain splat: {layers.Count} layers, 2 control slices.");
+    }
+
+    private static BntxTexture? ResolveTerrainTexture(
+        GfpakPack pack,
+        TerrainMaterialSet material,
+        string fileName,
+        string slot,
+        FieldScene scene)
+    {
+        if (!material.TryResolve(pack.Archive, fileName, out GfpakEntry? entry) || entry is null)
+        {
+            scene.Messages.Add($"warning: terrain texture '{fileName}' ({slot}) is missing.");
+            return null;
+        }
+
+        BntxFile? bntx = pack.ParseBntx(entry);
+        if (bntx is null || bntx.Textures.Count == 0)
+        {
+            scene.Messages.Add($"warning: terrain texture '{fileName}' ({slot}) could not be parsed.");
+            return null;
+        }
+
+        return bntx.Textures[0];
     }
 
     private static void LoadScenePlacements(string dumpRoot, string area, GfpakPack pack, FieldScene scene)
