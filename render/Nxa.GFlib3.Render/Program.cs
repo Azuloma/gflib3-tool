@@ -36,7 +36,7 @@ FieldScene scene;
 try
 {
     Console.WriteLine($"Loading {options.Area} with model pack {options.ModelPack}...");
-    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter, options.TerrainStride);
+    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter, options.TerrainStride, options.TerrainTileScale);
 }
 catch (Exception ex) when (ex is IOException
     or InvalidDataException
@@ -134,6 +134,7 @@ static void PrintHelp()
           --no-terrain        Hide the heightmap terrain
           --no-scene          Hide resident scene-table placements
           --terrain-stride <n> Sample every nth terrain row/column (default 1)
+          --terrain-tile-scale <n> Multiply SplatST terrain tiling (default 64)
           --no-textures       Render without base-color textures
           -h, --help          Show this help
 

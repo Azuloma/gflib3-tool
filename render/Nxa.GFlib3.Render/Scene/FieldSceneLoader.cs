@@ -26,7 +26,8 @@ public static class FieldSceneLoader
         string area,
         string modelPackName,
         string? meshFilter,
-        int terrainStride = 1)
+        int terrainStride = 1,
+        float terrainTileScale = 64f)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dumpRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
@@ -60,7 +61,7 @@ public static class FieldSceneLoader
             terrainPackPath, $"bin/field/terrain/{area}/terrain/");
 
         LoadRoomModel(modelPack, scene, meshFilter);
-        LoadTerrain(terrainPack, scene, terrainStride);
+        LoadTerrain(terrainPack, scene, terrainStride, terrainTileScale);
         LoadVegetation(terrainPack, scene);
         LoadScenePlacements(dumpRoot, area, modelPack, scene);
 
@@ -145,7 +146,7 @@ public static class FieldSceneLoader
         return models[0];
     }
 
-    private static void LoadTerrain(GfpakPack pack, FieldScene scene, int stride)
+    private static void LoadTerrain(GfpakPack pack, FieldScene scene, int stride, float tileScale)
     {
         try
         {
@@ -160,7 +161,7 @@ public static class FieldSceneLoader
                 $"terrain: {surface.Heightmap.Width}x{surface.Heightmap.Height}, "
                 + $"scale {surface.HeightScale:0.###}, {mesh.Vertices.Length:N0} vertices.");
 
-            LoadTerrainSplat(pack, scene, material);
+            LoadTerrainSplat(pack, scene, material, tileScale);
         }
         catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or IOException)
         {
@@ -168,7 +169,7 @@ public static class FieldSceneLoader
         }
     }
 
-    private static void LoadTerrainSplat(GfpakPack pack, FieldScene scene, TerrainMaterialSet material)
+    private static void LoadTerrainSplat(GfpakPack pack, FieldScene scene, TerrainMaterialSet material, float tileScale)
     {
         string[] layerNames =
         [
@@ -260,11 +261,18 @@ public static class FieldSceneLoader
             TrmtrVec4Parameter? parameter = material.Material.Vec4Parameters.FirstOrDefault(
                 item => item.Name == $"SplatST{i}");
             float scale = parameter?.Value.X ?? 1f;
-            scene.TerrainLayerScales[i] = scale > 0 ? scale : 1f;
+            if (scale <= 0)
+            {
+                scale = 1f;
+            }
+
+            scene.TerrainLayerScales[i] = scale;
         }
 
+        scene.TerrainTileScale = tileScale;
         scene.TerrainLayers.AddRange(layers);
-        scene.Messages.Add($"terrain splat: {layers.Count} layers, 2 control slices.");
+        scene.Messages.Add(
+            $"terrain splat: {layers.Count} layers, 2 control slices, UV x{tileScale:0.###}.");
     }
 
     private static BntxTexture? ResolveTerrainTexture(

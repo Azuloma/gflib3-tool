@@ -78,8 +78,11 @@ the shader value `ControlTextureNum = Two`. Each slice holds four 8-bit weights:
 | 1 | SplatColor4 (sand03) | SplatColor5 (gravel02) | SplatColor6 (gravel01) | unused |
 
 Weights are normalized after sampling and blended across the seven albedo
-textures. Per-layer UV tiling comes from the material's `SplatST0..6` vec4
-parameters (the X component: 4.0, 2.5, 2.5, 3.0, 3.0, 2.0, 2.5 for area 00).
+textures. Per-layer UV tiling is `SplatST0..6.X × 64`: the X components are
+4.0, 2.5, 2.5, 3.0, 3.0, 2.0, 2.5 for area 00, so the effective repeats over the
+map are 160–256. The ×64 factor is the viewer default
+(`--terrain-tile-scale`, live Project-panel slider); without it the textures
+appear far too large.
 
 Observed channel statistics for area 00 (`bntx stats`): slice 0 has
 mean R/G/B/A = 126/101/16/0.2, slice 1 has 6.2/2.6/2.4/0. That matches a
@@ -114,7 +117,8 @@ terrain mesh <gfpak> [--stride N]        vertex/index counts and bounds
 ## Open questions
 
 - Splat normal maps and the hole map (`EnableHoleMap`) are not sampled yet.
-- Exact `SplatST` units, sRGB handling, and V orientation of splat textures.
+- Formal `SplatST` units (×64 is visually correct) and V orientation.
+- sRGB handling for terrain albedo uploads.
 - Terrain descriptor entry 3: layer tables, quad counts, and remaining fields.
 - World offset and streaming for multi-cell and `terrain_X_Z_*` packs.
 - Detail groups: procedural grass scatter rules and the 17 E8 trailing

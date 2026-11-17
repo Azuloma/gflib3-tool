@@ -51,6 +51,7 @@
   "project.indices": "Indices",
   "project.instances": "Instances",
   "project.textures": "Textures",
+  "project.terrainUv": "Terrain UV tiling",
   "project.warnings": "Warnings",
   "console.empty": "No messages.",
   "validation.ok": "No validation problems.",

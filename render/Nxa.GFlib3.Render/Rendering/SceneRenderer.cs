@@ -175,6 +175,7 @@ internal sealed class SceneRenderer : IDisposable
     private readonly List<GlTexture> _terrainAlbedo = [];
     private readonly GlTexture? _terrainControl0;
     private readonly GlTexture? _terrainControl1;
+    private readonly float[] _terrainScales = new float[7];
     private readonly List<GlTexture> _textures = [];
     private readonly List<GlMesh> _roomMeshes = [];
     private readonly List<PlacedRender> _placed = [];
@@ -372,7 +373,13 @@ internal sealed class SceneRenderer : IDisposable
                 _terrainShader.SetInt("uControl0", 7);
                 _terrainControl1.Bind(TextureUnit.Texture8);
                 _terrainShader.SetInt("uControl1", 8);
-                _terrainShader.SetFloatArray("uLayerScales[0]", scene.TerrainLayerScales);
+
+                for (int i = 0; i < _terrainScales.Length; i++)
+                {
+                    _terrainScales[i] = scene.TerrainLayerScales[i] * scene.TerrainTileScale;
+                }
+
+                _terrainShader.SetFloatArray("uLayerScales[0]", _terrainScales);
 
                 _terrain.Draw(0, _terrain.IndexCount);
             }

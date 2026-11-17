@@ -235,6 +235,17 @@ public sealed class EditorShell
         DrawKeyValue(_text.T("project.instances"), _scene.Instances.Count.ToString("N0", CultureInfo.InvariantCulture));
         DrawKeyValue(_text.T("project.textures"), _scene.Textures.Count.ToString(CultureInfo.InvariantCulture));
         DrawKeyValue(_text.T("project.warnings"), WarningCount().ToString(CultureInfo.InvariantCulture));
+
+        if (_scene.Terrain is not null)
+        {
+            ImGui.Separator();
+            float tiling = _scene.TerrainTileScale;
+            if (ImGui.SliderFloat(_text.T("project.terrainUv"), ref tiling, 0.25f, 256f, "x%.2f"))
+            {
+                _scene.TerrainTileScale = tiling;
+            }
+        }
+
         ImGui.End();
     }
 

@@ -51,6 +51,7 @@
   "project.indices": "インデックス",
   "project.instances": "インスタンス",
   "project.textures": "テクスチャ",
+  "project.terrainUv": "地形UVタイリング",
   "project.warnings": "警告",
   "console.empty": "メッセージはありません。",
   "validation.ok": "検証上の問題はありません。",

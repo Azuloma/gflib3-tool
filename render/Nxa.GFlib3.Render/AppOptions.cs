@@ -41,6 +41,9 @@ public sealed class AppOptions
 
     public int TerrainStride { get; private set; } = 1;
 
+    /// <summary>Multiplier applied to the material's SplatST terrain tiling.</summary>
+    public float TerrainTileScale { get; private set; } = 64f;
+
     public static AppOptions Parse(string[] args)
     {
         var options = new AppOptions
@@ -105,6 +108,20 @@ public sealed class AppOptions
                     }
 
                     options.TerrainStride = stride;
+                    break;
+                case "--terrain-tile-scale" when i + 1 < args.Length:
+                    if (!float.TryParse(
+                            args[++i],
+                            NumberStyles.Float,
+                            CultureInfo.InvariantCulture,
+                            out float tileScale)
+                        || !float.IsFinite(tileScale)
+                        || tileScale <= 0)
+                    {
+                        throw new ArgumentException("--terrain-tile-scale requires a positive number.");
+                    }
+
+                    options.TerrainTileScale = tileScale;
                     break;
                 case "--screenshot" when i + 1 < args.Length:
                     options.ScreenshotPath = args[++i];

@@ -38,6 +38,7 @@ Options:
 | `--screenshot <path>` | Capture the whole window as a 24-bit BMP |
 | `--screenshot-delay <s>` | Wait before the screenshot, then exit |
 | `--terrain-stride <n>` | Sample every nth heightmap row/column (default 1) |
+| `--terrain-tile-scale <n>` | Multiply `SplatST` terrain tiling (default 64) |
 | `--no-plants`, `--no-room`, `--no-terrain`, `--no-scene`, `--no-textures` | Diagnostic rendering toggles |
 
 ## Loading
@@ -69,7 +70,8 @@ Options:
 9. Build the terrain grid from the `TerrainMaterial` heightmap with
    `TerrainSurface`/`TerrainMeshBuilder` (`--terrain-stride` for previews).
    Decode `SplatAlpha` slices 0/1 as the four-plus-three layer weights and
-   `SplatColor0..6` as albedo; tiling comes from `SplatST0..6`.
+   `SplatColor0..6` as albedo; tiling is `SplatST0..6 × 64` by default
+   (`--terrain-tile-scale`, also a live Project-panel slider).
 10. Scan `resident_release.gfpak` with `ResidentSceneFile.FindInArchive`, keep
     scenes whose name starts with `areaNN_` or `ha_areaNN_`, resolve the
     resource name against TRMDL mesh/material names in the selected model pack,
@@ -87,9 +89,9 @@ Folder hashes include the trailing slash.
   light plus ambient. Both System.Numerics matrices and instance matrices are
   uploaded for the column-vector convention.
 - Terrain uses a second shader that samples the two `SplatAlpha` control slices,
-  normalizes the seven layer weights, and blends `SplatColor0..6` with their
-  `SplatST` tiling. Scene-table placements share one GPU buffer per geometry and
-  draw with their SRT matrix.
+  normalizes the seven layer weights, and blends `SplatColor0..6` with
+  `SplatST × terrainTileScale` tiling (default 64). Scene-table placements share
+  one GPU buffer per geometry and draw with their SRT matrix.
 - Room meshes, placed meshes, terrain, and vegetation are drawn into an
   off-screen RGBA8 framebuffer with a 24-bit depth buffer; the Scene panel
   displays that texture.
