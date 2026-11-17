@@ -19,6 +19,7 @@ public sealed class EditorShell
 
     private FieldScene _scene;
     private bool _showAbout;
+    private bool _showControls;
     private bool _layoutPending;
     private uint _dockspaceId;
     private int _selectedRoomMesh = -1;
@@ -173,6 +174,12 @@ public sealed class EditorShell
 
         if (ImGui.BeginMenu(_text.T("menu.help")))
         {
+            if (ImGui.MenuItem(_text.T("menu.help.controls")))
+            {
+                _showControls = true;
+                ImGui.OpenPopup("controls");
+            }
+
             if (ImGui.MenuItem(_text.T("menu.help.about")))
             {
                 _showAbout = true;
@@ -198,7 +205,7 @@ public sealed class EditorShell
             EditorIcons.ToColor(EditorTheme.Border));
 
         float buttonY = start.Y + MathF.Max(0f, (EditorTheme.ToolbarHeight - ImGui.GetFrameHeight()) * 0.5f);
-        ImGui.SetCursorScreenPos(new Vector2(start.X + 6f, buttonY));
+        ImGui.SetCursorScreenPos(new Vector2(start.X + (6f * EditorTheme.UiScale), buttonY));
         EditorIcons.ToolButton(EditorIcon.Select, _text.T("toolbar.select"), active: true, enabled: false);
         ImGui.SameLine();
         EditorIcons.ToolButton(EditorIcon.Move, _text.T("toolbar.move"), active: false, enabled: false);
@@ -537,8 +544,8 @@ public sealed class EditorShell
         draw.AddRectFilled(position, position + size, EditorIcons.ToColor(EditorTheme.StatusBackground));
         draw.AddLine(position, new Vector2(position.X + size.X, position.Y), EditorIcons.ToColor(EditorTheme.Border));
 
-        float x = position.X + 10f;
-        float y = position.Y + 4f;
+        float x = position.X + (10f * EditorTheme.UiScale);
+        float y = position.Y + (4f * EditorTheme.UiScale);
         x = AddStatusText(draw, x, y, frame.Status, EditorTheme.TextPrimary);
         x = AddStatusSeparator(draw, x, y);
         Vector3 camera = frame.Camera.Position;
@@ -566,15 +573,15 @@ public sealed class EditorShell
 
     private static float AddStatusSeparator(ImDrawListPtr draw, float x, float y)
     {
-        x += 8f;
+        x += 8f * EditorTheme.UiScale;
         x = AddStatusText(draw, x, y, "|", EditorTheme.TextDisabled);
-        return x + 8f;
+        return x + (8f * EditorTheme.UiScale);
     }
 
     private static float AddStatusPair(ImDrawListPtr draw, float x, float y, string label, string value)
     {
         x = AddStatusText(draw, x, y, label, EditorTheme.TextMuted);
-        x += 4f;
+        x += 4f * EditorTheme.UiScale;
         return AddStatusText(draw, x, y, value, EditorTheme.TextPrimary);
     }
 
@@ -594,15 +601,6 @@ public sealed class EditorShell
         int height = Math.Max(1, (int)available.Y);
         uint texture = frame.RenderScene(width, height);
         ImGui.Image((nint)texture, available, new Vector2(0, 1), new Vector2(1, 0));
-
-        Vector2 min = ImGui.GetItemRectMin();
-        string hint = _text.T("control.hint");
-        Vector2 hintSize = ImGui.CalcTextSize(hint);
-        Vector2 hintMin = min + new Vector2(8f, 8f);
-        Vector2 hintMax = hintMin + hintSize + new Vector2(12f, 8f);
-        ImDrawListPtr draw = ImGui.GetWindowDrawList();
-        draw.AddRectFilled(hintMin, hintMax, 0xB0202020, 2f);
-        draw.AddText(hintMin + new Vector2(6f, 4f), EditorIcons.ToColor(EditorTheme.TextMuted), hint);
 
         bool hovered = ImGui.IsItemHovered();
         if (hovered)
@@ -664,6 +662,7 @@ public sealed class EditorShell
 
     private void DrawAbout()
     {
+        DrawControls();
         if (_showAbout)
         {
             ImGui.OpenPopup("about");
@@ -684,13 +683,42 @@ public sealed class EditorShell
         }
     }
 
+    private void DrawControls()
+    {
+        if (_showControls)
+        {
+            ImGui.OpenPopup("controls");
+            _showControls = false;
+        }
+
+        if (!ImGui.BeginPopupModal("controls", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            return;
+        }
+
+        ImGui.Text(_text.T("menu.help.controls"));
+        ImGui.Separator();
+        foreach (string line in _text.T("menu.help.controlsBody").Split('\n'))
+        {
+            ImGui.TextWrapped(line);
+        }
+
+        ImGui.Separator();
+        if (ImGui.Button("OK"))
+        {
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
+    }
+
     private int WarningCount() => _scene.Messages.Count(
         message => message.StartsWith("warning:", StringComparison.OrdinalIgnoreCase));
 
     private static void DrawKeyValue(string key, string value)
     {
         ImGui.TextDisabled(key);
-        ImGui.SameLine(150);
+        ImGui.SameLine(150 * EditorTheme.UiScale);
         ImGui.TextWrapped(value);
     }
 

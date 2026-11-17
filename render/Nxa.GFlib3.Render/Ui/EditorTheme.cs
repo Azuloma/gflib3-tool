@@ -9,8 +9,11 @@ namespace Nxa.GFlib3.Render.Ui;
 /// <summary>Unity 2019 dark-skin palette and compact metrics for the editor shell.</summary>
 internal static class EditorTheme
 {
-    public const float ToolbarHeight = 28f;
-    public const float StatusBarHeight = 22f;
+    public const float UiScale = 1.25f;
+    public const int FontSize = 18;
+
+    public static readonly float ToolbarHeight = 28f * UiScale;
+    public static readonly float StatusBarHeight = 22f * UiScale;
 
     public static readonly Vector4 TextPrimary = Hex(0xD2D2D2);
     public static readonly Vector4 TextMuted = Hex(0x9A9A9A);
@@ -60,6 +63,7 @@ internal static class EditorTheme
         style.ColorButtonPosition = ImGuiDir.Right;
         style.ButtonTextAlign = new Vector2(0.5f, 0.5f);
         style.SelectableTextAlign = new Vector2(0f, 0.5f);
+        style.ScaleAllSizes(UiScale);
 
         style.Colors[(int)ImGuiCol.Text] = TextPrimary;
         style.Colors[(int)ImGuiCol.TextDisabled] = TextDisabled;

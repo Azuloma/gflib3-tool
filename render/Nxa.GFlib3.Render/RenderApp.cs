@@ -58,6 +58,7 @@ internal sealed class RenderApp : IDisposable
         {
             Size = new Vector2D<int>(1600, 900),
             Title = _text.T("app.title"),
+            WindowState = WindowState.Maximized,
             API = new GraphicsAPI(
                 ContextAPI.OpenGL,
                 ContextProfile.Core,
@@ -443,14 +444,16 @@ internal sealed class RenderApp : IDisposable
 
     private static ImGuiFontConfig? CreateFontConfig()
     {
-        const int fontSize = 14;
         string? path = FindJapaneseFont();
         if (path is null)
         {
             return null;
         }
 
-        return new ImGuiFontConfig(path, fontSize, io => io.Fonts.GetGlyphRangesJapanese());
+        return new ImGuiFontConfig(
+            path,
+            EditorTheme.FontSize,
+            io => io.Fonts.GetGlyphRangesJapanese());
     }
 
     private static string? FindJapaneseFont()

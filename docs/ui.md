@@ -26,7 +26,7 @@ console toolbar, and selection model belong to Phase 2.
 | Hierarchy 20%  | Scene (tab)                58% | Inspector |
 |                |                                 |   22%     |
 | Project 20%    | Console (tabs) 32% height       |           |
-+ Status bar 22px -------------------------------------------+
++ Status bar 27.5px -----------------------------------------+
 ```
 
 - Left column: Hierarchy 45% height, Project 55%.
@@ -88,17 +88,24 @@ Rules:
 
 ## Metrics
 
+All metrics use `EditorTheme.UiScale = 1.25`; the font is loaded at 18px and
+`ScaleAllSizes` applies the same factor to padding, spacing, rounding, and
+scrollbars.
+
 | Setting | Value |
 | --- | --- |
-| Font size | 14px (Japanese-capable system font) |
-| Frame padding | 4 x 2 |
-| Item spacing | 4 x 3 |
-| Window padding | 6 x 6 |
-| Frame rounding | 2 |
+| Font size | 18px (Japanese-capable system font) |
+| Frame padding | 5 x 2.5 |
+| Item spacing | 5 x 3.75 |
+| Window padding | 7.5 x 7.5 |
+| Frame rounding | 2.5 |
 | Window / tab rounding | 0 |
-| Scrollbar | 12px |
-| Toolbar | 28px |
-| Status bar | 22px |
+| Scrollbar | 15px |
+| Toolbar | 35px |
+| Status bar | 27.5px |
+
+The Scene panel no longer overlays a control hint; `Help > Controls` opens the
+navigation list as a modal dialog.
 
 ## Icons
 

@@ -1,4 +1,4 @@
-# Field viewer (`Nxa.GFlib3.Render`)
+﻿# Field viewer (`Nxa.GFlib3.Render`)
 
 Status: Stage 4b. The project loads one field area, renders the heightmap
 terrain, one room model with BNTX base-color textures, scene-table objects
@@ -41,7 +41,7 @@ Options:
 | `--reload-area <name>` | Diagnostic: run the runtime switch to this area after the first frame |
 | `--reload-model <name>` | Model pack for `--reload-area`; defaults to the matching pack |
 | `--terrain-stride <n>` | Sample every nth heightmap row/column (default 1) |
-| `--terrain-tile-scale <n>` | Multiply `SplatST` terrain tiling (default 64) |
+| `--terrain-tile-scale <n>` | Multiply `SplatST` terrain tiling (default 128) |
 | `--no-plants`, `--no-room`, `--no-terrain`, `--no-scene`, `--no-textures` | Diagnostic rendering toggles |
 
 ## Loading
@@ -75,7 +75,7 @@ Options:
 9. Build the terrain grid from the `TerrainMaterial` heightmap with
    `TerrainSurface`/`TerrainMeshBuilder` (`--terrain-stride` for previews).
    Decode `SplatAlpha` slices 0/1 as the four-plus-three layer weights and
-   `SplatColor0..6` as albedo; tiling is `SplatST0..6 × 64` by default
+   `SplatColor0..6` as albedo; tiling is `SplatST0..6 x128` by default
    (`--terrain-tile-scale`, also a live Project-panel slider).
 10. Open `resident_release.gfpak`, parse entry `0081` as a `ModelHash → TRMDL`
     catalog, and scan the placement tables with `ResidentSceneFile.FindInArchive`.
@@ -118,7 +118,7 @@ the test machine, dominated by scene objects and their textures).
   uploaded for the column-vector convention.
 - Terrain uses a second shader that samples the two `SplatAlpha` control slices,
   normalizes the seven layer weights, and blends `SplatColor0..6` with
-  `SplatST × terrainTileScale` tiling (default 64). Scene-table placements share
+  `SplatST × terrainTileScale` tiling (default 128). Scene-table placements share
   one GPU buffer per geometry and draw with their SRT matrix.
 - Room meshes, placed meshes, terrain, and vegetation are drawn into an
   off-screen RGBA8 framebuffer with a 24-bit depth buffer; the Scene panel
@@ -135,11 +135,12 @@ the test machine, dominated by scene objects and their textures).
 
 ## UI shell
 
-The host window contains a menu bar, an icon toolbar, and a dockspace. Panels:
-Hierarchy, Scene, Inspector, Project, and Console (Console hosts Validation and
-History tabs). A 22px status bar runs below the dock area. The Project panel
-contains the Area pack and Model pack selectors with a Load button above the
-current model, counts, and terrain UV slider.
+The host window opens maximized; 1600×900 is the restore size. It contains a menu
+bar, an icon toolbar, and a dockspace. Panels: Hierarchy, Scene, Inspector,
+Project, and Console (Console hosts Validation and History tabs). A 27.5px status
+bar (125% UI scale) runs below the dock area. The Project panel contains the Area
+pack and Model pack selectors with a Load button above the current model, counts,
+and terrain UV slider.
 
 The default Unity-style layout is built programmatically: left 20% (Hierarchy
 45% / Project 55%), center 58% (Scene 68% / Console 32%), right 22% Inspector.
@@ -151,7 +152,8 @@ icons, and the docking implementation are described in `docs/ui.md`.
 
 Labels come from embedded `Localization/en.json` and `ja.json`. The menu switch
 changes language at runtime. A CJK font is loaded from the Windows font folder
-(`meiryo.ttc`, `msgothic.ttc`, or `YuGothM.ttc`) for Japanese glyphs at 14px.
+(`meiryo.ttc`, `msgothic.ttc`, or `YuGothM.ttc`) for Japanese glyphs at 18px.
+`Help > Controls` opens the navigation list; the Scene panel has no hint overlay.
 
 ## Known limitations
 
