@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 the NXAevora Projects
 
+using Nxa.GFlib3.Core.Formats.Terrain;
 using Nxa.GFlib3.Core.Formats.Trinity;
 using Silk.NET.OpenGL;
 
@@ -17,9 +18,19 @@ internal sealed class GlMesh : IDisposable
     private readonly uint _ebo;
 
     public GlMesh(GL gl, TrinityMeshGeometry geometry)
+        : this(gl, Interleave(geometry.Vertices), geometry.Indices)
+    {
+    }
+
+    public GlMesh(GL gl, TerrainMeshGeometry geometry)
+        : this(gl, Interleave(geometry.Vertices), geometry.Indices)
+    {
+    }
+
+    private GlMesh(GL gl, float[] vertices, uint[] indices)
     {
         _gl = gl;
-        IndexCount = geometry.Indices.Length;
+        IndexCount = indices.Length;
 
         _vao = _gl.GenVertexArray();
         _gl.BindVertexArray(_vao);
@@ -27,7 +38,6 @@ internal sealed class GlMesh : IDisposable
         _vbo = _gl.GenBuffer();
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
 
-        float[] vertices = Interleave(geometry.Vertices);
         unsafe
         {
             fixed (float* pointer = vertices)
@@ -58,11 +68,11 @@ internal sealed class GlMesh : IDisposable
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
         unsafe
         {
-            fixed (uint* pointer = geometry.Indices)
+            fixed (uint* pointer = indices)
             {
                 _gl.BufferData(
                     BufferTargetARB.ElementArrayBuffer,
-                    (nuint)(geometry.Indices.Length * sizeof(uint)),
+                    (nuint)(indices.Length * sizeof(uint)),
                     pointer,
                     BufferUsageARB.StaticDraw);
             }
@@ -91,6 +101,30 @@ internal sealed class GlMesh : IDisposable
         _gl.DeleteVertexArray(_vao);
         _gl.DeleteBuffer(_vbo);
         _gl.DeleteBuffer(_ebo);
+    }
+
+    private static float[] Interleave(TerrainVertex[] vertices)
+    {
+        var data = new float[vertices.Length * VertexFloats];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            TerrainVertex vertex = vertices[i];
+            int offset = i * VertexFloats;
+            data[offset] = vertex.Position.X;
+            data[offset + 1] = vertex.Position.Y;
+            data[offset + 2] = vertex.Position.Z;
+            data[offset + 3] = vertex.Normal.X;
+            data[offset + 4] = vertex.Normal.Y;
+            data[offset + 5] = vertex.Normal.Z;
+            data[offset + 6] = vertex.TexCoord.X;
+            data[offset + 7] = vertex.TexCoord.Y;
+            data[offset + 8] = 1f;
+            data[offset + 9] = 1f;
+            data[offset + 10] = 1f;
+            data[offset + 11] = 1f;
+        }
+
+        return data;
     }
 
     private static float[] Interleave(TrinityVertex[] vertices)

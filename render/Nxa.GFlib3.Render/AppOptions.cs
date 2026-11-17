@@ -35,6 +35,12 @@ public sealed class AppOptions
 
     public bool NoRoom { get; private set; }
 
+    public bool NoTerrain { get; private set; }
+
+    public bool NoScene { get; private set; }
+
+    public int TerrainStride { get; private set; } = 1;
+
     public static AppOptions Parse(string[] args)
     {
         var options = new AppOptions
@@ -84,6 +90,21 @@ public sealed class AppOptions
                     break;
                 case "--no-room":
                     options.NoRoom = true;
+                    break;
+                case "--no-terrain":
+                    options.NoTerrain = true;
+                    break;
+                case "--no-scene":
+                    options.NoScene = true;
+                    break;
+                case "--terrain-stride" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int stride)
+                        || stride < 1)
+                    {
+                        throw new ArgumentException("--terrain-stride requires a positive integer.");
+                    }
+
+                    options.TerrainStride = stride;
                     break;
                 case "--screenshot" when i + 1 < args.Length:
                     options.ScreenshotPath = args[++i];

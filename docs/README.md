@@ -13,9 +13,10 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [sarc.md](sarc.md) | SARC payloads nested inside gfpak entries |
 | [trinity.md](trinity.md) | Trinity FlatBuffer model formats (trmdl/trmsh/trmbf/trmtr/trskl) |
 | [placement.md](placement.md) | Field object placement: terrain manifests, `.trins`, SRT instance buffers |
+| [terrain.md](terrain.md) | Terrain material, heightmap scale and mapping, splat layers, grid mesh |
 | [bntx.md](bntx.md) | BNTX texture containers, formats, block-linear layout, decoding |
-| [renderer.md](renderer.md) | Field viewer: loading, rendering, UI shell, controls, limitations |
-| [scene-layout.md](scene-layout.md) | Resident scene/visibility tables and background model placement (hypothesis) |
+| [renderer.md](renderer.md) | Field viewer: terrain, room, scene placement, vegetation, UI shell, limitations |
+| [scene-layout.md](scene-layout.md) | Resident scene schema and background model placement (verified on the dump) |
 
 ## Related files
 

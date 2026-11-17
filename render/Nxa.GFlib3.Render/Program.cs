@@ -36,7 +36,7 @@ FieldScene scene;
 try
 {
     Console.WriteLine($"Loading {options.Area} with model pack {options.ModelPack}...");
-    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter);
+    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter, options.TerrainStride);
 }
 catch (Exception ex) when (ex is IOException
     or InvalidDataException
@@ -72,6 +72,8 @@ if (options.LoadCheck)
     }
 
     Console.WriteLine($"room parts:  {scene.RoomMeshes.Count}");
+    Console.WriteLine($"placed parts:{scene.PlacedMeshes.Count}");
+    Console.WriteLine($"terrain:     {(scene.Terrain is null ? "none" : $"{scene.Terrain.Vertices.Length:N0} vertices")}");
     Console.WriteLine($"plant models:{scene.Plants.Count}");
     Console.WriteLine($"instances:   {scene.Instances.Count}");
     Console.WriteLine($"textures:    {scene.Textures.Count}");
@@ -129,6 +131,9 @@ static void PrintHelp()
           --screenshot-delay <s> Wait this many seconds before the screenshot
           --no-plants         Hide vegetation
           --no-room           Hide room geometry
+          --no-terrain        Hide the heightmap terrain
+          --no-scene          Hide resident scene-table placements
+          --terrain-stride <n> Sample every nth terrain row/column (default 1)
           --no-textures       Render without base-color textures
           -h, --help          Show this help
 

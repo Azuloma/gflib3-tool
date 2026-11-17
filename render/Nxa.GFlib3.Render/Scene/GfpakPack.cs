@@ -29,6 +29,8 @@ internal sealed class GfpakPack : IDisposable
 
     public IReadOnlyList<GfpakEntry> Entries => _archive.Entries;
 
+    public GfpakArchive Archive => _archive;
+
     public GfpakEntry? Find(string fileName)
     {
         ulong hash = Fnv1a64.Hash(LogicalFolder + fileName);
@@ -47,6 +49,11 @@ internal sealed class GfpakPack : IDisposable
 
     public TrinityFile? ParseTrinity(GfpakEntry entry)
     {
+        if (_trinity.TryGetValue(entry.Index, out TrinityFile? cached))
+        {
+            return cached;
+        }
+
         return ParseTrinity(entry, Read(entry));
     }
 

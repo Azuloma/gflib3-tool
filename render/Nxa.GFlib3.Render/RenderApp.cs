@@ -96,7 +96,14 @@ internal sealed class RenderApp : IDisposable
         ImGuiFontConfig? font = CreateFontConfig();
         _imgui = new ImGuiController(_gl, _window, _input, font, ConfigureIo);
 
-        _renderer = new SceneRenderer(_gl, _scene, !_options.NoPlants, !_options.NoTextures, !_options.NoRoom);
+        _renderer = new SceneRenderer(
+            _gl,
+            _scene,
+            !_options.NoPlants,
+            !_options.NoTextures,
+            !_options.NoRoom,
+            !_options.NoTerrain,
+            !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
         _shell = new EditorShell(_text, _scene);
 
@@ -187,7 +194,8 @@ internal sealed class RenderApp : IDisposable
 
     private void FrameCamera()
     {
-        BoundingBox bounds = _options.NoPlants ? RoomBounds() : VegetationBounds();
+        BoundingBox bounds = _scene.Terrain?.Bounds
+            ?? (_options.NoPlants ? RoomBounds() : VegetationBounds());
         Vector3 min = ToVector(bounds.Min);
         Vector3 max = ToVector(bounds.Max);
         Vector3 center = (min + max) * 0.5f;

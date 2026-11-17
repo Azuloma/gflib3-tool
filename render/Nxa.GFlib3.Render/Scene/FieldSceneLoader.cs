@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 the NXAevora Projects
 
+using System.Numerics;
 using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Core.Formats.Bntx;
 using Nxa.GFlib3.Core.Formats.Gfpak;
+using Nxa.GFlib3.Core.Formats.Resident;
 using Nxa.GFlib3.Core.Formats.Terrain;
 using Nxa.GFlib3.Core.Formats.Trinity;
 
@@ -13,10 +15,18 @@ namespace Nxa.GFlib3.Render.Scene;
 public static class FieldSceneLoader
 {
     private const string ModelPackFolder = "bin/field/model/pack/";
+    private const string ResidentPackFile = "resident_release.gfpak";
     private const string BntxMagic = "BNTX";
     private const int MaxTextureSize = 8192;
+    private const int MaxResourceTrimDepth = 4;
+    private const int MaxModelEntryBytes = 1 << 20;
 
-    public static FieldScene Load(string dumpRoot, string area, string modelPackName, string? meshFilter)
+    public static FieldScene Load(
+        string dumpRoot,
+        string area,
+        string modelPackName,
+        string? meshFilter,
+        int terrainStride = 1)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dumpRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
@@ -50,10 +60,13 @@ public static class FieldSceneLoader
             terrainPackPath, $"bin/field/terrain/{area}/terrain/");
 
         LoadRoomModel(modelPack, scene, meshFilter);
+        LoadTerrain(terrainPack, scene, terrainStride);
         LoadVegetation(terrainPack, scene);
+        LoadScenePlacements(dumpRoot, area, modelPack, scene);
 
         scene.Messages.Insert(0, $"Loaded {area}: {scene.RoomMeshes.Count} room parts, "
-            + $"{scene.Plants.Count} plant models, {scene.Instances.Count} instances.");
+            + $"{scene.PlacedMeshes.Count} placed parts, {scene.Plants.Count} plant models, "
+            + $"{scene.Instances.Count} instances.");
         return scene;
     }
 
@@ -103,6 +116,15 @@ public static class FieldSceneLoader
     {
         if (string.IsNullOrWhiteSpace(filter))
         {
+            foreach (TrinityFile model in models)
+            {
+                if (model.Trmdl!.MeshPaths.Any(
+                    path => path.Contains("room_", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return model;
+                }
+            }
+
             return models[0];
         }
 
@@ -121,6 +143,295 @@ public static class FieldSceneLoader
 
         scene.Messages.Add($"warning: no model matched '{filter}'; using the first model.");
         return models[0];
+    }
+
+    private static void LoadTerrain(GfpakPack pack, FieldScene scene, int stride)
+    {
+        try
+        {
+            TerrainManifest manifest = pack.FindManifest();
+            TerrainMaterialSet material = TerrainMaterialSet.FindInArchive(pack.Archive, pack.LogicalFolder);
+            TerrainSurface surface = TerrainSurface.Load(pack.Archive, manifest, material);
+            TerrainMeshGeometry mesh = TerrainMeshBuilder.Build(surface, Math.Max(stride, 1));
+
+            scene.TerrainSurface = surface;
+            scene.Terrain = mesh;
+            scene.Messages.Add(
+                $"terrain: {surface.Heightmap.Width}x{surface.Heightmap.Height}, "
+                + $"scale {surface.HeightScale:0.###}, {mesh.Vertices.Length:N0} vertices.");
+        }
+        catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or IOException)
+        {
+            scene.Messages.Add($"warning: terrain unavailable: {ex.Message}");
+        }
+    }
+
+    private static void LoadScenePlacements(string dumpRoot, string area, GfpakPack pack, FieldScene scene)
+    {
+        string path = Path.Combine(
+            dumpRoot, "RomFS", "bin", "archive", "field", ResidentPackFile);
+        if (!File.Exists(path))
+        {
+            scene.Messages.Add($"warning: {ResidentPackFile} not found.");
+            return;
+        }
+
+        string areaToken = area.StartsWith("ha_", StringComparison.OrdinalIgnoreCase)
+            ? area[3..]
+            : area;
+        List<TrmdlFile> models = BuildModelIndex(pack);
+        var cache = new Dictionary<string, List<SceneMesh>>(StringComparer.OrdinalIgnoreCase);
+        int sceneCount = 0;
+        int placedParts = 0;
+        int unavailable = 0;
+
+        try
+        {
+            using GfpakArchive resident = GfpakArchive.Open(path);
+            IReadOnlyList<ResidentSceneArchiveEntry> tables = ResidentSceneFile.FindInArchive(resident);
+
+            foreach (ResidentSceneArchiveEntry table in tables)
+            {
+                foreach (ResidentScene sceneDefinition in table.File.Scenes)
+                {
+                    if (!TryGetResourceName(sceneDefinition.Name, areaToken, out string resource))
+                    {
+                        continue;
+                    }
+
+                    sceneCount++;
+                    if (!IsFieldModelResource(resource))
+                    {
+                        continue;
+                    }
+
+                    if (!cache.TryGetValue(resource, out List<SceneMesh>? meshes))
+                    {
+                        meshes = LoadResourceMeshes(pack, scene, models, resource);
+                        cache[resource] = meshes;
+                    }
+
+                    if (meshes.Count == 0)
+                    {
+                        unavailable++;
+                        continue;
+                    }
+
+                    foreach (ResidentSceneNode node in sceneDefinition.Nodes)
+                    {
+                        if (node.Scale.X == 0 && node.Scale.Y == 0 && node.Scale.Z == 0)
+                        {
+                            continue;
+                        }
+
+                        Matrix4x4 transform = Compose(node);
+                        foreach (SceneMesh source in meshes)
+                        {
+                            scene.PlacedMeshes.Add(new SceneMesh
+                            {
+                                Name = sceneDefinition.Name,
+                                Geometry = source.Geometry,
+                                PartIndexStart = source.PartIndexStart,
+                                PartIndexCount = source.PartIndexCount,
+                                MaterialIndex = source.MaterialIndex,
+                                Placement = transform,
+                            });
+                            placedParts++;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or IOException)
+        {
+            scene.Messages.Add($"warning: scene placement unavailable: {ex.Message}");
+            return;
+        }
+
+        scene.Messages.Add(
+            $"scene: {sceneCount} area scenes, {placedParts} placed parts, "
+            + $"{unavailable} field models unavailable ({Path.GetFileName(path)}).");
+    }
+
+    private static List<TrmdlFile> BuildModelIndex(GfpakPack pack)
+    {
+        var models = new List<TrmdlFile>();
+        foreach (GfpakEntry entry in pack.Entries)
+        {
+            if (entry.SizeDecompressed < 32 || entry.SizeDecompressed > MaxModelEntryBytes)
+            {
+                continue;
+            }
+
+            TrinityFile? file = pack.ParseTrinity(entry);
+            if (file?.Kind == TrinityKind.Trmdl && file.Trmdl is not null)
+            {
+                models.Add(file.Trmdl);
+            }
+        }
+
+        return models;
+    }
+
+    private static List<SceneMesh> LoadResourceMeshes(
+        GfpakPack pack,
+        FieldScene scene,
+        List<TrmdlFile> models,
+        string resource)
+    {
+        List<string> candidates = BuildResourceCandidates(resource);
+        foreach (TrmdlFile model in models)
+        {
+            if (!MatchesResource(model, candidates))
+            {
+                continue;
+            }
+
+            var meshes = new List<SceneMesh>();
+            AddModelMeshes(pack, scene, model, resource, meshes, new HashSet<string>(StringComparer.Ordinal));
+            if (meshes.Count > 0)
+            {
+                return meshes;
+            }
+        }
+
+        return [];
+    }
+
+    private static bool IsFieldModelResource(string resource)
+    {
+        string[] prefixes =
+        [
+            "npc_",
+            "poke_",
+            "vis_",
+            "emitter_",
+            "effect_",
+            "gimmick_",
+            "objects_eff_",
+            "sub_",
+            "event_",
+            "fsys_",
+            "weve_",
+            "wpha_",
+        ];
+
+        foreach (string prefix in prefixes)
+        {
+            if (resource.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return !resource.Contains("_npc_", StringComparison.OrdinalIgnoreCase)
+            && !resource.Contains("_poke_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesResource(TrmdlFile model, List<string> candidates)
+    {
+        foreach (string candidate in candidates)
+        {
+            foreach (string meshPath in model.MeshPaths)
+            {
+                if (meshPath.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            foreach (string material in model.Materials)
+            {
+                if (material.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static List<string> BuildResourceCandidates(string resource)
+    {
+        var candidates = new List<string>();
+        string current = resource;
+        for (int depth = 0; depth <= MaxResourceTrimDepth; depth++)
+        {
+            AddCandidate(candidates, current);
+
+            int separator = current.LastIndexOf('_');
+            if (separator <= 0 || !current[(separator + 1)..].All(char.IsDigit))
+            {
+                break;
+            }
+
+            current = current[..separator];
+        }
+
+        return candidates;
+    }
+
+    private static void AddCandidate(List<string> candidates, string value)
+    {
+        if (value.Length == 0)
+        {
+            return;
+        }
+
+        candidates.Add(value);
+        string normalized = value
+            .Replace("bg_parts_", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("bgparts_", string.Empty, StringComparison.OrdinalIgnoreCase);
+        if (!string.Equals(normalized, value, StringComparison.Ordinal)
+            && normalized.Length > 0)
+        {
+            candidates.Add(normalized);
+        }
+    }
+
+    private static bool TryGetResourceName(string name, string areaToken, out string resource)
+    {
+        resource = string.Empty;
+        string prefix = areaToken + "_";
+        string rest;
+        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            rest = name[prefix.Length..];
+        }
+        else if (name.StartsWith("ha_" + prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            rest = name[("ha_".Length + prefix.Length)..];
+        }
+        else
+        {
+            return false;
+        }
+
+        if (rest.Length > 3
+            && (rest[0] == 's' || rest[0] == 'S')
+            && char.IsDigit(rest[1])
+            && char.IsDigit(rest[2])
+            && rest[3] == '_')
+        {
+            rest = rest[4..];
+        }
+
+        if (rest.Length == 0)
+        {
+            return false;
+        }
+
+        resource = rest;
+        return true;
+    }
+
+    private static Matrix4x4 Compose(ResidentSceneNode node)
+    {
+        float radians = node.YawDegrees * (MathF.PI / 180f);
+        return Matrix4x4.CreateScale(node.Scale.X, node.Scale.Y, node.Scale.Z)
+            * Matrix4x4.CreateRotationY(radians)
+            * Matrix4x4.CreateTranslation(node.Position.X, node.Position.Y, node.Position.Z);
     }
 
     private static void LoadVegetation(GfpakPack pack, FieldScene scene)

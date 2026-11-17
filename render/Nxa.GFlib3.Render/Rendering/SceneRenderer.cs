@@ -4,6 +4,7 @@
 using System.Numerics;
 using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Core.Formats.Bntx;
+using Nxa.GFlib3.Core.Formats.Trinity;
 using Nxa.GFlib3.Render.Camera;
 using Nxa.GFlib3.Render.Scene;
 using Silk.NET.OpenGL;
@@ -92,14 +93,26 @@ internal sealed class SceneRenderer : IDisposable
     private readonly ShaderProgram _shader;
     private readonly List<GlTexture> _textures = [];
     private readonly List<GlMesh> _roomMeshes = [];
+    private readonly List<PlacedRender> _placed = [];
+    private readonly List<GlMesh> _placedBuffers = [];
     private readonly List<PlantRender> _plants = [];
+    private readonly GlMesh? _terrain;
     private readonly GlTexture _white;
     private readonly bool _showPlants;
     private readonly bool _showTextures;
     private readonly bool _showRoom;
+    private readonly bool _showTerrain;
+    private readonly bool _showScene;
     private bool _disposed;
 
-    public SceneRenderer(GL gl, FieldScene scene, bool showPlants, bool showTextures, bool showRoom)
+    public SceneRenderer(
+        GL gl,
+        FieldScene scene,
+        bool showPlants,
+        bool showTextures,
+        bool showRoom,
+        bool showTerrain,
+        bool showScene)
     {
         _gl = gl;
         _shader = new ShaderProgram(gl, VertexShader, FragmentShader);
@@ -107,6 +120,8 @@ internal sealed class SceneRenderer : IDisposable
         _showPlants = showPlants;
         _showTextures = showTextures;
         _showRoom = showRoom;
+        _showTerrain = showTerrain;
+        _showScene = showScene;
 
         foreach (SceneTexture texture in scene.Textures)
         {
@@ -116,6 +131,24 @@ internal sealed class SceneRenderer : IDisposable
         foreach (SceneMesh mesh in scene.RoomMeshes)
         {
             _roomMeshes.Add(new GlMesh(gl, mesh.Geometry));
+        }
+
+        if (scene.Terrain is not null)
+        {
+            _terrain = new GlMesh(gl, scene.Terrain);
+        }
+
+        var placedBuffers = new Dictionary<TrinityMeshGeometry, GlMesh>(ReferenceEqualityComparer.Instance);
+        foreach (SceneMesh mesh in scene.PlacedMeshes)
+        {
+            if (!placedBuffers.TryGetValue(mesh.Geometry, out GlMesh? buffer))
+            {
+                buffer = new GlMesh(gl, mesh.Geometry);
+                placedBuffers.Add(mesh.Geometry, buffer);
+                _placedBuffers.Add(buffer);
+            }
+
+            _placed.Add(new PlacedRender(mesh, buffer));
         }
 
         for (int model = 0; model < scene.Plants.Count; model++)
@@ -188,6 +221,30 @@ internal sealed class SceneRenderer : IDisposable
             }
         }
 
+        if (_showTerrain && _terrain is not null)
+        {
+            _shader.SetInt("uInstanced", 0);
+            _shader.SetMatrix("uModel", Matrix4x4.Identity);
+            _white.Bind(TextureUnit.Texture0);
+            _shader.SetInt("uHasBaseColor", 0);
+            _shader.SetInt("uAlphaTest", 0);
+            _shader.SetVector3("uTint", new Vector3(0.42f, 0.53f, 0.34f));
+            _terrain.Draw(0, _terrain.IndexCount);
+            triangles += _terrain.IndexCount / 3;
+        }
+
+        if (_showScene)
+        {
+            _shader.SetInt("uInstanced", 0);
+            foreach (PlacedRender placed in _placed)
+            {
+                _shader.SetMatrix("uModel", placed.Mesh.Placement ?? Matrix4x4.Identity);
+                BindMaterial(scene, placed.Mesh.MaterialIndex);
+                placed.Buffer.Draw(placed.Mesh.PartIndexStart, placed.Mesh.PartIndexCount);
+                triangles += placed.Mesh.PartIndexCount / 3;
+            }
+        }
+
         if (_showPlants)
         {
             _shader.SetInt("uInstanced", 0);
@@ -226,6 +283,13 @@ internal sealed class SceneRenderer : IDisposable
 
         _disposed = true;
         foreach (GlMesh mesh in _roomMeshes)
+        {
+            mesh.Dispose();
+        }
+
+        _terrain?.Dispose();
+
+        foreach (GlMesh mesh in _placedBuffers)
         {
             mesh.Dispose();
         }
@@ -288,6 +352,8 @@ internal sealed class SceneRenderer : IDisposable
         value.Row3.Y,
         value.Row3.Z,
         value.Row3.W);
+
+    private sealed record PlacedRender(SceneMesh Mesh, GlMesh Buffer);
 
     private sealed class PlantRender
     {

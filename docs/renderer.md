@@ -1,9 +1,10 @@
 # Field viewer (`Nxa.GFlib3.Render`)
 
-Status: Stage 4 shell. The project loads one field area, displays room geometry
-with BNTX base-color textures, and draws vegetation instances from the terrain
-manifest. The UI is a dockable Dear ImGui shell with English/Japanese labels.
-Editing controls are visible but disabled.
+Status: Stage 4b. The project loads one field area, renders the heightmap
+terrain, one room model with BNTX base-color textures, scene-table placements
+from `resident_release`, and vegetation instances from the terrain manifest. The
+UI is a dockable Dear ImGui shell with English/Japanese labels. Editing controls
+are visible but disabled.
 
 ## Project
 
@@ -36,7 +37,8 @@ Options:
 | `--frames <n>` | Render `n` frames, then exit |
 | `--screenshot <path>` | Capture the whole window as a 24-bit BMP |
 | `--screenshot-delay <s>` | Wait before the screenshot, then exit |
-| `--no-plants`, `--no-room`, `--no-textures` | Diagnostic rendering toggles |
+| `--terrain-stride <n>` | Sample every nth heightmap row/column (default 1) |
+| `--no-plants`, `--no-room`, `--no-terrain`, `--no-scene`, `--no-textures` | Diagnostic rendering toggles |
 
 ## Loading
 
@@ -46,10 +48,11 @@ Options:
    other entries are parsed as Trinity FlatBuffers and TRMDL files are grouped.
    Files are resolved by the FNV-1a path hash of
    `bin/field/model/pack/<name>`.
-3. Load **one** TRMDL: the first entry, or the first model whose mesh/material
-   name contains `--mesh`. A model pack can contain many unrelated models (area
-   `s02` has a mountain, five event objects, a room, and an irori); merging them
-   at the origin produced overlapping geometry and made textures appear wrong.
+3. Load **one** TRMDL: the first model whose mesh/material name contains
+   `--mesh`; otherwise the first model whose mesh path contains `room_`.
+   A model pack can contain many unrelated models (area `s02` has a mountain,
+   five event objects, a room, and an irori); merging them at the origin produced
+   overlapping geometry and made textures appear wrong.
 4. For each LOD group, keep only non-`_lodN` mesh paths. Plants list every LOD
    in one group (`entries=0,1,2`); using all three overlapped the low-detail
    billboards with LOD0.
@@ -63,6 +66,14 @@ Options:
 8. Find the terrain manifest with `TerrainManifest.FindInArchive`, load each
    plant model from the terrain pack, and append all `.trins` matrices as
    `PlantInstance` records.
+9. Build the terrain grid from the `TerrainMaterial` heightmap with
+   `TerrainSurface`/`TerrainMeshBuilder` (`--terrain-stride` for previews).
+10. Scan `resident_release.gfpak` with `ResidentSceneFile.FindInArchive`, keep
+    scenes whose name starts with `areaNN_` or `ha_areaNN_`, resolve the
+    resource name against TRMDL mesh/material names in the selected model pack,
+    and instantiate each node's SRT (`T * R_y(yaw) * S`). Resource matching
+    trims trailing `_NN` instance numbers and the `bgparts_` prefix. NPC, event,
+    effect, and visibility scenes are skipped.
 
 The terrain pack's logical folder is
 `bin/field/terrain/<area>/terrain/`; room packs use `bin/field/model/pack/`.
@@ -73,14 +84,19 @@ Folder hashes include the trailing slash.
 - One shader: transform, vertex color, base-color texture, and a directional
   light plus ambient. Both System.Numerics matrices and instance matrices are
   uploaded for the column-vector convention.
-- Room meshes and vegetation are drawn into an off-screen RGBA8 framebuffer
-  with a 24-bit depth buffer; the Scene panel displays that texture.
+- Terrain is drawn as the heightmap grid with a flat green tint; splat layers
+  are not sampled yet. Scene-table placements share one GPU buffer per geometry
+  and draw with their SRT matrix.
+- Room meshes, placed meshes, terrain, and vegetation are drawn into an
+  off-screen RGBA8 framebuffer with a 24-bit depth buffer; the Scene panel
+  displays that texture.
 - Vegetation uses a model-matrix draw per instance. Instanced attributes were
   initially planned, but produced incorrectly transformed geometry in the
   current GL path; per-instance model matrices are correct and fast enough for
   the observed counts (60 in area 00, 2,204 in area 02).
 - The free-fly camera is Y-up: right mouse look, WASD, Q/E, Shift sprint, F
-  frame. Default framing focuses the vegetation cluster.
+  frame. Default framing focuses the terrain bounds; F frames the room or
+  vegetation selection.
 
 ## UI shell
 
@@ -95,20 +111,18 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 
 ## Known limitations
 
-- **Field composition is not implemented.** The viewer loads one model pack and
-  one TRMDL from it, plus vegetation. It does not merge the other room/model
-  packs (`ha_area00_s01`, `s03_*`, `s06`, `s07`, `s09`, `s12_*`, `s16_*`), parse
-  their placement graph, or build the heightmap/detail terrain. Field
-  structures and terrain visible in-game are therefore missing. This is beyond
-  Stage 4's single-model shell and needs its own RE stage.
-- Terrain and vegetation world-coordinate alignment is not fully verified. In
-  `ha_area00`, the `s02` mountain spans about ±2,430 units with heights up to
-  1,458, while vegetation translations are around x=445, z=650, y=60. The
-  cluster appears to sit on the terrain in area 00, but the placement transform
-  or cell mapping for other areas is not yet confirmed.
-- Only one model pack pair is loaded. Selecting a room sub-pack such as
-  `ha_area00_s07` shows an interior while the vegetation remains elsewhere.
-- No skinning, animations, collision, terrain heightmap, or LOD switching.
+- Only the selected model pack is searched for scene models. Areas whose models
+  live in another pack (for example an interior sub-pack) leave those scenes
+  unplaced; there is no runtime area/model selector yet.
+- Scene-name to model matching is heuristic: it strips `areaNN_`, `sNN_`,
+  trailing `_NN`, and `bgparts_` prefixes. Background structures in
+  `ha_area00_s02` and `ha_area04` resolve; other packs are unverified.
+- Splat layers, detail grass, collisions, and event/NPC scenes are not rendered.
+- Terrain is drawn with a flat tint; the 7-layer splat material and the 16 MB
+  weight buffers are not decoded yet.
+- Only one room TRMDL is loaded. Selecting a room sub-pack such as
+  `ha_area00_s07` shows that interior at the origin.
+- No skinning, animations, collision, or LOD switching.
 - No editor operations; Stage 5 adds selection, transforms, and export.
 - BNTX textures are decoded to CPU RGBA8 once; no streaming or texture cache
   eviction.
