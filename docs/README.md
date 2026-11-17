@@ -13,6 +13,7 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [sarc.md](sarc.md) | SARC payloads nested inside gfpak entries |
 | [trinity.md](trinity.md) | Trinity FlatBuffer model formats (trmdl/trmsh/trmbf/trmtr/trskl) |
 | [placement.md](placement.md) | Field object placement: terrain manifests, `.trins`, SRT instance buffers |
+| [bntx.md](bntx.md) | BNTX texture containers, formats, block-linear layout, decoding |
 
 ## Related files
 

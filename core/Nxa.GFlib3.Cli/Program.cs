@@ -16,6 +16,7 @@ try
         "gfpak" => GfpakCommand.Run(args.AsSpan(1)),
         "sarc" => SarcCommand.Run(args.AsSpan(1)),
         "trinity" => TrinityCommand.Run(args.AsSpan(1)),
+        "bntx" => BntxCommand.Run(args.AsSpan(1)),
         _ => UnknownCommand(args[0]),
     };
 }
@@ -53,6 +54,9 @@ static void PrintUsage()
                                                         Extract SARC entries to disk
           trinity info <file> [--type <kind>]           Inspect a Trinity model file
                                                         (trmbf/trmsh/trmdl/trmtr/trskl)
+          bntx info <file>                              Inspect a BNTX texture container
+          bntx decode <file> <out.ppm> [--texture N] [--mip N]
+                                                        Decode a texture to binary PPM
 
         The native decoder is loaded from NXA_GF3_NATIVE, the application
         directory, or artifacts/native. Build it with scripts/build-native.ps1.
