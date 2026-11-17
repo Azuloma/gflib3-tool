@@ -2,6 +2,7 @@
 // Copyright 2026 the NXAevora Projects
 
 using System.Globalization;
+using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Core.Formats.Trinity;
 
 namespace Nxa.GFlib3.Cli.Commands;
@@ -155,6 +156,14 @@ internal static class TrinityCommand
         }
 
         Console.WriteLine($"skeleton: {file.SkeletonPath ?? "(none)"}");
+        if (file.Bounds is { } bounds)
+        {
+            Console.WriteLine($"bounds:   min {Format(bounds.Min)} max {Format(bounds.Max)}");
+        }
+
+        Console.WriteLine(
+            $"field06:  {file.Field06.X}, {file.Field06.Y}, {file.Field06.Z}, {file.Field06.W}");
+        Console.WriteLine($"trltt:    {file.TrlttPath ?? "(none)"}");
         Console.WriteLine($"lods:     {file.Lods.Count}");
         for (int i = 0; i < file.Lods.Count; i++)
         {
@@ -200,6 +209,10 @@ internal static class TrinityCommand
         }
     }
 
+    private static string Format(Vector3f value) => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{value.X:F3}, {value.Y:F3}, {value.Z:F3}");
+
     private static TrinityKind? ParseKind(string value) => value.ToLowerInvariant() switch
     {
         "trmbf" => TrinityKind.Trmbf,
@@ -222,3 +235,5 @@ internal static class TrinityCommand
         return 1;
     }
 }
+
+
