@@ -18,6 +18,7 @@ try
         "trinity" => TrinityCommand.Run(args.AsSpan(1)),
         "bntx" => BntxCommand.Run(args.AsSpan(1)),
         "terrain" => TerrainCommand.Run(args.AsSpan(1)),
+        "scene" => SceneCommand.Run(args.AsSpan(1)),
         _ => UnknownCommand(args[0]),
     };
 }
@@ -59,6 +60,9 @@ static void PrintUsage()
           bntx decode <file> <out.ppm> [--texture N] [--mip N]
                                                         Decode a texture to binary PPM
           terrain manifest <gfpak>                     Show the terrain manifest of a field pack
+          terrain heightmap <gfpak>                    Decode the terrain heightmap and report its range
+          terrain mesh <gfpak> [--stride N]            Build the terrain grid mesh and report its size
+          scene info <file|gfpak> [--entry N] [--all]  Inspect resident scene placement tables
 
         The native decoder is loaded from NXA_GF3_NATIVE, the application
         directory, or artifacts/native. Build it with scripts/build-native.ps1.

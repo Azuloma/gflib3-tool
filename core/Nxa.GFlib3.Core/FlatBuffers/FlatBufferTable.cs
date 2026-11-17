@@ -40,6 +40,9 @@ public readonly struct FlatBufferTable
 
     public bool HasField(int index) => GetFieldPosition(index) >= 0;
 
+    /// <summary>Number of fields declared by the vtable, including absent ones.</summary>
+    public int FieldCount => (GetVTableSize() - 4) / 2;
+
     public byte GetByte(int index, byte defaultValue = 0)
     {
         int position = GetFieldPosition(index);
@@ -74,6 +77,12 @@ public readonly struct FlatBufferTable
     {
         int position = GetFieldPosition(index);
         return position < 0 ? defaultValue : ReadUInt32(position);
+    }
+
+    public ulong GetUInt64(int index, ulong defaultValue = 0)
+    {
+        int position = GetFieldPosition(index);
+        return position < 0 ? defaultValue : ReadUInt64(position);
     }
 
     public float GetFloat(int index, float defaultValue = 0)
@@ -259,6 +268,12 @@ public readonly struct FlatBufferTable
         return BinaryPrimitives.ReadSingleLittleEndian(_data.AsSpan(position));
     }
 
+    internal ulong ReadUInt64(int position)
+    {
+        Require(position, 8);
+        return BinaryPrimitives.ReadUInt64LittleEndian(_data.AsSpan(position));
+    }
+
     internal void Require(int position, long size)
     {
         if (position < 0 || size < 0 || position > _data.Length || size > _data.Length - position)
@@ -268,10 +283,8 @@ public readonly struct FlatBufferTable
         }
     }
 
-    private int GetFieldPosition(int index)
+    private int GetVTableSize()
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-
         int vtable = _position - ReadInt32(_position);
         int vtableSize = ReadUInt16(vtable);
         if (vtableSize < 4 || (vtableSize & 1) != 0)
@@ -280,6 +293,15 @@ public readonly struct FlatBufferTable
         }
 
         Require(vtable, vtableSize);
+        return vtableSize;
+    }
+
+    private int GetFieldPosition(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        int vtable = _position - ReadInt32(_position);
+        int vtableSize = GetVTableSize();
         int fieldCount = (vtableSize - 4) / 2;
         if (index >= fieldCount)
         {
