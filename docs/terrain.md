@@ -1,4 +1,4 @@
-# Terrain (heightmap and material)
+﻿# Terrain (heightmap and material)
 
 Status: heightmap format, height scale, and world mapping verified against areas
 00, 01, 04, and 05. Splat-layer weights and procedural detail remain unresolved.
@@ -78,9 +78,9 @@ the shader value `ControlTextureNum = Two`. Each slice holds four 8-bit weights:
 | 1 | SplatColor4 (sand03) | SplatColor5 (gravel02) | SplatColor6 (gravel01) | unused |
 
 Weights are normalized after sampling and blended across the seven albedo
-textures. Per-layer UV tiling is `SplatST0..6.X × 64`: the X components are
+textures. Per-layer UV tiling is `SplatST0..6.X x128`: the X components are
 4.0, 2.5, 2.5, 3.0, 3.0, 2.0, 2.5 for area 00, so the effective repeats over the
-map are 160–256. The ×64 factor is the viewer default
+map are 320–512. The x128 factor is the viewer default
 (`--terrain-tile-scale`, live Project-panel slider); without it the textures
 appear far too large.
 
@@ -117,7 +117,7 @@ terrain mesh <gfpak> [--stride N]        vertex/index counts and bounds
 ## Open questions
 
 - Splat normal maps and the hole map (`EnableHoleMap`) are not sampled yet.
-- Formal `SplatST` units (×64 is visually correct) and V orientation.
+- Formal `SplatST` units (x128 is the current default) and V orientation.
 - sRGB handling for terrain albedo uploads.
 - Terrain descriptor entry 3: layer tables, quad counts, and remaining fields.
 - World offset and streaming for multi-cell and `terrain_X_Z_*` packs.

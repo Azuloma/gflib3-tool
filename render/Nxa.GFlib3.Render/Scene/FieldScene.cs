@@ -41,7 +41,7 @@ public sealed class FieldScene
     public float[] TerrainLayerScales { get; } = [1f, 1f, 1f, 1f, 1f, 1f, 1f];
 
     /// <summary>Live multiplier on <see cref="TerrainLayerScales"/> from the UI/CLI.</summary>
-    public float TerrainTileScale { get; set; } = 64f;
+    public float TerrainTileScale { get; set; } = 128f;
 
     public bool HasTerrainSplat => TerrainLayers.Count == 7
         && TerrainControl0 is not null

@@ -48,7 +48,7 @@ public sealed class AppOptions
     public int TerrainStride { get; private set; } = 1;
 
     /// <summary>Multiplier applied to the material's SplatST terrain tiling.</summary>
-    public float TerrainTileScale { get; private set; } = 64f;
+    public float TerrainTileScale { get; private set; } = 128f;
 
     public static AppOptions Parse(string[] args)
     {

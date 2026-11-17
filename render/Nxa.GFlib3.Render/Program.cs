@@ -147,7 +147,7 @@ static void PrintHelp()
           --no-terrain        Hide the heightmap terrain
           --no-scene          Hide resident scene-table placements
           --terrain-stride <n> Sample every nth terrain row/column (default 1)
-          --terrain-tile-scale <n> Multiply SplatST terrain tiling (default 64)
+          --terrain-tile-scale <n> Multiply SplatST terrain tiling (default 128)
           --no-textures       Render without base-color textures
           -h, --help          Show this help
 

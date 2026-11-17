@@ -25,7 +25,7 @@ public static class FieldSceneLoader
         string modelPackName,
         string? meshFilter,
         int terrainStride = 1,
-        float terrainTileScale = 64f)
+        float terrainTileScale = 128f)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dumpRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
