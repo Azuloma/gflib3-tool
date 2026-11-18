@@ -237,11 +237,32 @@ The documentation index is [docs/README.md](docs/README.md). Start with:
 - BNTX tile mode 1, ASTC/BC6H, and some multi-texture/mip edge cases are not
   supported.
 
+## Credits
+
+- **ooz** - Kraken/Mermaid/Selkie/Leviathan/LZNA/Bitknit decoder by powzix and
+  contributors, GPLv3. Vendored from
+  <https://github.com/powzix/ooz> at revision
+  `05038060aa68f9187ae9923b2388ca8db40e58d1`; the local CLI guard is described in
+  [third_party/ooz/NOTICE.md](third_party/ooz/NOTICE.md).
+- **BCnEncoder.Net** - block-compression codec by Nominom, MIT OR Unlicense.
+  <https://github.com/Nominom/BCnEncoder.NET>
+- **Silk.NET** - .NET bindings for OpenGL, windowing, and input by the .NET
+  Foundation and contributors, MIT. <https://github.com/dotnet/Silk.NET>
+- **ImGui.NET** - .NET wrapper for Dear ImGui by Eric Mellino, MIT.
+  <https://github.com/mellinoe/imgui.net>
+- **Dear ImGui** - immediate-mode GUI by Omar Cornut and contributors, MIT.
+  <https://github.com/ocornut/imgui>
+
+*Pokemon Legends: Arceus* and related names are trademarks of their respective
+owners. This project is unaffiliated with and not endorsed by Nintendo,
+Creatures, Game Freak, or The Pokemon Company; it does not distribute game
+data.
+
 ## License
 
-The project source is licensed under **GPL-3.0-or-later**; source files carry
-the matching SPDX identifier and the NXAevora copyright line. The vendored
-`third_party/ooz` decoder is GPLv3; see
-[third_party/ooz/COPYING](third_party/ooz/COPYING). Managed dependencies include
-BCnEncoder.Net (MIT/Unlicense), Silk.NET, and ImGui.NET under their respective
-licenses.
+The project source is licensed under the **GNU General Public License v3.0 or
+later** (`GPL-3.0-or-later`). The full license text is in [LICENSE](LICENSE);
+source files carry the matching SPDX identifier and the NXAevora copyright
+line. The vendored `third_party/ooz` decoder is GPLv3; see
+[third_party/ooz/COPYING](third_party/ooz/COPYING). Managed dependencies retain
+their own licenses as listed under [Credits](#credits).
