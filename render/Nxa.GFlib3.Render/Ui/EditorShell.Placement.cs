@@ -12,14 +12,50 @@ namespace Nxa.GFlib3.Render.Ui;
 
 public sealed partial class EditorShell
 {
+    private PlantCellCatalog? _plantCells;
     private int _placeModelIndex = -1;
     private PlantInstanceFile? _placeTargetFile;
+    private PlantInstanceFile? _manualPlaceTarget;
+    private bool _placeTargetPending;
+    private bool _placeFollowCell = true;
+    private TerrainCell? _placeCell;
     private Matrix4x4RowMajor? _placePreviewMatrix;
 
     /// <summary>Prospective vegetation draw submitted to the scene renderer.</summary>
     public PlantPreview? Preview { get; private set; }
 
-    public bool CanPlace => HasPlantSelection() && IsPlaceTargetValid();
+    private TerrainCell? DisplayedTargetCell
+    {
+        get
+        {
+            if (_placeFollowCell)
+            {
+                return _placeCell;
+            }
+
+            return _placeTargetFile is not null
+                && PlantCellCatalog.TryParseCell(_placeTargetFile.FileName, out TerrainCell cell)
+                    ? cell
+                    : null;
+        }
+    }
+
+    public bool CanPlace
+    {
+        get
+        {
+            if (!TryGetPlaceModel(out int modelIndex)
+                || _scene.TerrainSurface is null
+                || _plantCells is null)
+            {
+                return false;
+            }
+
+            return _placeFollowCell
+                ? _plantCells.CanCreateSynthetic(modelIndex)
+                : IsPlaceTargetValid();
+        }
+    }
 
     public bool CanDuplicate =>
         _drag is null
@@ -75,9 +111,32 @@ public sealed partial class EditorShell
 
     private bool AddInstance(PlantInstanceFile file, Matrix4x4RowMajor matrix)
     {
+        if (file.IsSynthetic && _plantCells is not null && !_plantCells.IsRegistered(file))
+        {
+            if (!PlantCellCatalog.TryParseCell(file.FileName, out TerrainCell cell))
+            {
+                _scene.Messages.Add(
+                    $"warning: synthetic .trins '{file.LogicalPath}' has no parsable cell suffix.");
+                return false;
+            }
+
+            try
+            {
+                _plantCells.Register(file, cell);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _scene.Messages.Add($"warning: {ex.Message}");
+                return false;
+            }
+        }
+
         try
         {
             int index = _editSession.AddInstance(file, matrix);
+            _placeTargetFile = file;
+            _manualPlaceTarget = file;
+            _placeTargetPending = false;
             EnsureSceneIndexes();
             Select(new EditorSelection(EditorSelectionKind.PlantInstance, index));
             return true;
@@ -92,29 +151,91 @@ public sealed partial class EditorShell
     private bool TryPlaceAt(SceneRay ray, float maxDistance)
     {
         if (_scene.TerrainSurface is not TerrainSurface surface
-            || !TryGetPlaceTarget(out _, out PlantInstanceFile file)
-            || !ScenePicking.TryPickTerrain(surface, ray, maxDistance, out Vector3 point))
+            || _plantCells is null
+            || !ScenePicking.TryPickTerrain(surface, ray, maxDistance, out Vector3 point)
+            || !_plantCells.Grid.TryGetCell(point.X, point.Z, out TerrainCell cell))
         {
             return false;
         }
 
+        PlantInstanceFile? file;
+        if (_placeFollowCell)
+        {
+            if (!TryGetPlaceModel(out int modelIndex))
+            {
+                return false;
+            }
+
+            file = _plantCells.GetOrCreatePending(modelIndex, cell);
+        }
+        else if (!TryGetPlaceTarget(out _, out PlantInstanceFile target))
+        {
+            return false;
+        }
+        else
+        {
+            file = target;
+        }
+
+        if (file is null)
+        {
+            _scene.Messages.Add(
+                $"warning: no .trins target for cell ({cell.X}, {cell.Z}).");
+            return false;
+        }
+
+        if (file.IsSynthetic && !_plantCells.IsRegistered(file))
+        {
+            try
+            {
+                _plantCells.Register(file, cell);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _scene.Messages.Add($"warning: {ex.Message}");
+                return false;
+            }
+        }
+
+        _placeCell = _placeFollowCell ? cell : null;
+        _placeTargetFile = file;
+        _manualPlaceTarget = file;
+        _placeTargetPending = false;
         return AddInstance(file, PlantPlacement.AtTerrainPoint(point));
     }
 
     private void UpdatePlacePreview(bool hovered, bool hasRay, SceneRay ray, float maxDistance)
     {
-        Preview = null;
-        _placePreviewMatrix = null;
+        ClearPlacePreview();
         if (_tool != GizmoMode.Place
             || !hovered
             || !hasRay
             || _scene.TerrainSurface is not TerrainSurface surface
-            || !TryGetPlaceTarget(out int modelIndex, out _))
+            || _plantCells is null
+            || !TryGetPlaceModel(out int modelIndex))
         {
             return;
         }
 
-        if (!ScenePicking.TryPickTerrain(surface, ray, maxDistance, out Vector3 point))
+        if (!ScenePicking.TryPickTerrain(surface, ray, maxDistance, out Vector3 point)
+            || !_plantCells.Grid.TryGetCell(point.X, point.Z, out TerrainCell cell))
+        {
+            return;
+        }
+
+        if (_placeFollowCell)
+        {
+            PlantInstanceFile? file = _plantCells.GetOrCreatePending(modelIndex, cell);
+            if (file is null)
+            {
+                return;
+            }
+
+            _placeCell = cell;
+            _placeTargetFile = file;
+            _placeTargetPending = !_plantCells.IsRegistered(file);
+        }
+        else if (!TryGetPlaceTarget(out _, out _))
         {
             return;
         }
@@ -128,12 +249,19 @@ public sealed partial class EditorShell
     {
         Preview = null;
         _placePreviewMatrix = null;
+        _placeCell = null;
+        _placeTargetPending = false;
+        _placeTargetFile = _placeFollowCell ? null : _manualPlaceTarget;
     }
 
     private void ResetPlacementState()
     {
         _placeModelIndex = -1;
         _placeTargetFile = null;
+        _manualPlaceTarget = null;
+        _placeTargetPending = false;
+        _placeFollowCell = true;
+        _placeCell = null;
         ClearPlacePreview();
     }
 
@@ -148,7 +276,9 @@ public sealed partial class EditorShell
                 if (instance.SourceFile is PlantInstanceFile source)
                 {
                     _placeModelIndex = source.ModelIndex;
-                    _placeTargetFile = source;
+                    _manualPlaceTarget = source;
+                    _placeTargetFile = _placeFollowCell ? null : source;
+                    _placeTargetPending = false;
                 }
                 else
                 {
@@ -182,7 +312,10 @@ public sealed partial class EditorShell
         }
 
         _placeModelIndex = modelIndex;
-        _placeTargetFile = _scene.GetInstanceFiles(modelIndex).FirstOrDefault();
+        _manualPlaceTarget = _scene.GetInstanceFiles(modelIndex).FirstOrDefault();
+        _placeTargetFile = _placeFollowCell ? null : _manualPlaceTarget;
+        _placeTargetPending = false;
+        _placeCell = null;
     }
 
     private void SetPlacementTarget(PlantInstanceFile file)
@@ -192,19 +325,60 @@ public sealed partial class EditorShell
             return;
         }
 
+        _placeFollowCell = false;
         _placeModelIndex = file.ModelIndex;
+        _manualPlaceTarget = file;
         _placeTargetFile = file;
+        _placeTargetPending = false;
+        ClearPlacePreview();
+    }
+
+    private void SetPlacementFollowCell(bool follow)
+    {
+        _placeFollowCell = follow;
+        _placeTargetPending = false;
+        _placeCell = null;
+        if (follow)
+        {
+            _placeTargetFile = null;
+        }
+        else
+        {
+            _placeTargetFile = _manualPlaceTarget;
+            if ((_placeTargetFile is null || !_scene.InstanceFiles.Contains(_placeTargetFile))
+                && (uint)_placeModelIndex < (uint)_scene.Plants.Count)
+            {
+                _placeTargetFile = _scene.GetInstanceFiles(_placeModelIndex).FirstOrDefault();
+                _manualPlaceTarget = _placeTargetFile;
+            }
+        }
+
+        ClearPlacePreview();
+    }
+
+    private bool TryGetPlaceModel(out int modelIndex)
+    {
+        modelIndex = _placeModelIndex;
+        return HasPlantSelection() && (uint)modelIndex < (uint)_scene.Plants.Count;
     }
 
     private bool TryGetPlaceTarget(out int modelIndex, out PlantInstanceFile file)
     {
         modelIndex = _placeModelIndex;
         file = _placeTargetFile!;
-        return HasPlantSelection()
-            && (uint)modelIndex < (uint)_scene.Plants.Count
-            && _placeTargetFile is not null
-            && _placeTargetFile.ModelIndex == modelIndex
-            && _scene.InstanceFiles.Contains(_placeTargetFile);
+        if (!TryGetPlaceModel(out modelIndex)
+            || _placeTargetFile is null
+            || _placeTargetFile.ModelIndex != modelIndex)
+        {
+            return false;
+        }
+
+        if (_scene.InstanceFiles.Contains(_placeTargetFile))
+        {
+            return true;
+        }
+
+        return _placeTargetFile.IsSynthetic && _placeFollowCell;
     }
 
     private bool IsPlaceTargetValid() => TryGetPlaceTarget(out _, out _);
@@ -217,4 +391,9 @@ public sealed partial class EditorShell
             (uint)_selection.Index < (uint)_scene.Plants.Count,
         _ => false,
     };
+
+    private static PlantCellCatalog? CreatePlantCellCatalog(FieldScene scene) =>
+        scene.TerrainSurface is TerrainSurface surface
+            ? new PlantCellCatalog(scene, TerrainCellGrid.FromSurface(surface))
+            : null;
 }

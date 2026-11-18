@@ -18,21 +18,27 @@ read-only; the gizmo and the two add actions are the only edits.
 
 ## Placement target
 
-Placement always writes into an existing `.trins` file from the loaded terrain
-pack:
+Placement writes into a `.trins` file for the hit terrain cell:
 
 - The target model defaults to the selected instance's model or the selected
   plant model.
-- The target file defaults to the selected instance's source `.trins`; for a
-  model selection it is the model's first instance file.
-- The Inspector's Placement section selects any loaded plant model and then any
-  `.trins` file belonging to that model. File names remain visible because they
-  identify the terrain cell.
+- With `Follow terrain cell` enabled (default), the target file is chosen from
+  the cell under the terrain hit: `cellX = (worldX - WorldMinX) / cellSize`,
+  `cellZ = (GridHeight - worldZ) / cellSize`, using the 16×16 grid and the
+  manifest X origin. The Inspector shows the target cell and `.trins` name.
+- If the cell has no `.trins` for that model, the editor synthesizes
+  `<material-stem>_<model-stem>_X<x>Z<z>_d0.trins` in memory and registers it
+  when the first instance is placed. Export must write the file and add it to the
+  terrain manifest.
+- With `Follow terrain cell` disabled, the Inspector target selector chooses an
+  existing `.trins` file, as in Step 2.
 - A selected instance shows its source `.trins` logical path and its local
   index inside that file.
 
 New instances use yaw 0 and scale 1. The appended matrix is committed by
-`PlantEditSession`, so the regular add-command history applies.
+`PlantEditSession`, so the regular add-command history applies. The terrain
+world X origin (200 for `ha_area00_s02`) is applied to terrain height sampling,
+the terrain mesh, and placement cell lookup.
 
 ## Selection
 
@@ -78,20 +84,21 @@ adds no GL pipeline. The selected instance also shows its world AABB wireframe.
 ## Place tool
 
 The Place tool (`5`, toolbar crosshair) requires a selected plant model or
-instance and a valid `.trins` target. While the cursor is over the Scene panel
-and the ray hits the terrain, the viewer:
+instance. While the cursor is over the Scene panel and the ray hits the terrain,
+the viewer:
 
 1. Picks the first terrain surface point with `ScenePicking.TryPickTerrain`.
-2. Builds a yaw-0, unit-scale matrix with `PlantPlacement.AtTerrainPoint`.
-3. Draws the chosen model through `SceneRenderer.Preview` without adding it to
+2. Resolves the 16×16 cell and the target `.trins` (existing or synthetic).
+3. Builds a yaw-0, unit-scale matrix with `PlantPlacement.AtTerrainPoint`.
+4. Draws the chosen model through `SceneRenderer.Preview` without adding it to
    the scene.
-4. Draws the prospective world AABB in the viewport.
+5. Draws the prospective world AABB in the viewport.
 
-Left click appends that matrix to the target `.trins` through
+Left click registers a synthetic file if needed, appends the matrix through
 `PlantEditSession.AddInstance`, selects the new instance, and keeps Place active
 for repeated placement. Clicks that miss the terrain do nothing. The Place
-button stays disabled without a vegetation selection and target; pressing `5`
-without them appends a warning to the Console.
+button stays disabled without a vegetation selection; pressing `5` without one
+appends a warning to the Console.
 
 The preview is submitted before the next scene render, so it follows the cursor
 one frame behind the ImGui overlay. The model drawn by the preview is the
@@ -138,9 +145,9 @@ Stage 4.
 - `SetMatrix` applies a live drag frame without recording history.
 - `Commit` records one transform when the drag ends; identical matrices are
   ignored, and a new commit clears the redo tail.
-- `AddInstance` appends a matrix to an existing `.trins` source, records one
-  add, and bumps the scene instance revision. Adds are append-only; undo removes
-  the last appended instance and redo inserts it again.
+- `AddInstance` appends a matrix to a registered `.trins` source (existing or
+  synthetic), records one add, and bumps the scene instance revision. Adds are
+  append-only; undo removes the last appended instance and redo inserts it again.
 - `Undo`/`Redo` restore transform before/after matrices or remove/reinsert an
   added instance.
 - History is linear, capped at 512 entries. Undo/redo shortcuts are `Ctrl+Z`
@@ -157,9 +164,10 @@ Stage 4.
 ## Limitations
 
 - Edits are memory-only until the project format and RomFS export exist.
-- Placement can only append to an existing `.trins`; creating cells or editing
-  the terrain manifest is Step 3 work.
+- Missing cells are synthesized in memory. Export must write the new `.trins`
+  and add its path to the terrain manifest.
 - New instances are visual-only until collision generation is understood.
+- In-game cell streaming behavior is still unknown.
 - No transform snapping, pivot modes, or numeric Inspector input.
 - Multi-select and box-select are not implemented.
 - Animation, collision, and streaming data are not updated.

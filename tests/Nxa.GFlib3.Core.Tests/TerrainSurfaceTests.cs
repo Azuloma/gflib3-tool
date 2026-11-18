@@ -115,6 +115,31 @@ public sealed class TerrainSurfaceTests
     }
 
     [Fact]
+    public void AppliesArea00S02WorldOriginWhenDumpIsConfigured()
+    {
+        if (!TryLoad("ha_area00_s02", out GfpakArchive? archive, out TerrainSurface? surface)
+            || archive is null || surface is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            Assert.Equal(200f, surface.WorldOriginX, 3);
+            Assert.Equal(511.5f, surface.WorldExtentX, 3);
+            Assert.Equal(711.5f, surface.WorldMaxX, 3);
+
+            Assert.True(surface.TryGetWorldHeight(264.27f, 241.46f, out _));
+            Assert.False(surface.TryGetWorldHeight(64.27f, 241.46f, out _));
+            Assert.False(surface.TryGetWorldHeight(711.51f, 241.46f, out _));
+
+            TerrainMeshGeometry mesh = TerrainMeshBuilder.Build(surface, 16);
+            Assert.Equal(200f, mesh.Bounds.Min.X, 3);
+            Assert.Equal(711.5f, mesh.Bounds.Max.X, 3);
+        }
+    }
+
+    [Fact]
     public void BuildsTerrainMeshWhenDumpIsConfigured()
     {
         if (!TryLoad("ha_area00", out GfpakArchive? archive, out TerrainSurface? surface)

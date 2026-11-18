@@ -47,6 +47,28 @@ public sealed class FieldSceneLoaderTests
     }
 
     [Fact]
+    public void LoadsTerrainCellMetadataWhenDumpIsConfigured()
+    {
+        string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");
+        if (string.IsNullOrWhiteSpace(dump))
+        {
+            return;
+        }
+
+        FieldScene area = FieldSceneLoader.Load(dump, "ha_area00", "ha_area00", null);
+        Assert.Equal("area00_0_0", area.TerrainCellPrefix);
+        Assert.Equal("bin/field/terrain/ha_area00/terrain/", area.TerrainLogicalFolder);
+        Assert.NotNull(area.TerrainSurface);
+        Assert.Equal(0f, area.TerrainSurface.WorldOriginX, 3);
+
+        FieldScene subPack = FieldSceneLoader.Load(dump, "ha_area00_s02", "ha_area00", null);
+        Assert.Equal("terrain_area01_demo", subPack.TerrainCellPrefix);
+        Assert.Equal("bin/field/terrain/ha_area00_s02/terrain/", subPack.TerrainLogicalFolder);
+        Assert.NotNull(subPack.TerrainSurface);
+        Assert.Equal(200f, subPack.TerrainSurface.WorldOriginX, 3);
+    }
+
+    [Fact]
     public void KeepsSameNamedMaterialsFromDifferentFilesDistinct()
     {
         string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");

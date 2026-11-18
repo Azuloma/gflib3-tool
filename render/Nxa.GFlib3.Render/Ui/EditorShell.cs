@@ -49,6 +49,7 @@ public sealed partial class EditorShell
         _scene = scene;
         _catalog = catalog;
         _editSession = new PlantEditSession(scene);
+        _plantCells = CreatePlantCellCatalog(scene);
         _layoutPending = buildDefaultLayout;
         BuildSceneIndexes();
         SyncPackSelection();
@@ -94,6 +95,7 @@ public sealed partial class EditorShell
     {
         _scene = scene;
         _editSession = new PlantEditSession(scene);
+        _plantCells = CreatePlantCellCatalog(scene);
         _drag = null;
         _hoveredAxis = GizmoAxis.None;
         _selection = EditorSelection.None;

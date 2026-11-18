@@ -58,6 +58,12 @@ public sealed class FieldScene
     /// <summary>Source `.trins` files backing <see cref="Instances"/>.</summary>
     public List<PlantInstanceFile> InstanceFiles { get; } = [];
 
+    /// <summary>Material stem shared by the terrain's `.trins` file names.</summary>
+    public string TerrainCellPrefix { get; set; } = string.Empty;
+
+    /// <summary>Logical terrain folder, with a trailing slash, for synthesized files.</summary>
+    public string TerrainLogicalFolder { get; set; } = string.Empty;
+
     /// <summary>Increments when the instance list changes; transforms do not bump it.</summary>
     public int InstanceRevision { get; private set; }
 
@@ -222,6 +228,9 @@ public sealed class PlantInstanceFile
     public required int OriginalCount { get; init; }
 
     public int AddedCount { get; set; }
+
+    /// <summary>True when the file exists only in memory and must be exported.</summary>
+    public bool IsSynthetic { get; init; }
 
     public int NextIndex => OriginalCount + AddedCount;
 

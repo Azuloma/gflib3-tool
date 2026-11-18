@@ -109,17 +109,19 @@ History tab lists applied and redoable edits. Details are in `docs/editing.md`.
 Stage 5 Step 2 adds the Place tool and Duplicate action:
 
 - The toolbar gains a crosshair Place button (`5`) and a duplicate button after
-  the transform tools. Place is enabled only with a selected vegetation model or
-  instance and a valid `.trins` target; Duplicate is enabled for a selected
-  instance with a source file.
+  the transform tools. Place is enabled with a selected vegetation model or
+  instance; Duplicate is enabled for a selected instance with a source file.
 - The Edit menu carries `Duplicate` with `Ctrl+D`.
 - The Inspector shows a Placement section for plant models and instances: a
-  placement-model combo and a target `.trins` combo. Target labels stay as
-  `.trins` file names, with the full logical path in the tooltip.
+  placement-model combo, `Follow terrain cell` (default on), the target `.trins`
+  file, and the target cell. With follow off, the target `.trins` combo lists
+  existing files; with follow on, the target is derived from the terrain hit and
+  a missing cell shows as a new file. Full logical paths are tooltips.
 - A vegetation instance's Instances section also shows its source `.trins` and
   local index.
 - In Place mode the Scene shows the terrain-hit model preview and its AABB; left
-  click appends the instance and selects it.
+  click appends the instance and selects it. Missing cells are synthesized in
+  memory and registered on first placement.
 
 ## Project assets
 

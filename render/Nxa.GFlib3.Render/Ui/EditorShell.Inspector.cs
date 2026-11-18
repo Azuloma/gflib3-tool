@@ -226,32 +226,56 @@ public sealed partial class EditorShell
             ImGui.EndCombo();
         }
 
-        ImGui.TextDisabled(_text.T("inspector.targetFile"));
-        ImGui.SetNextItemWidth(-1f);
-        string targetLabel = _placeTargetFile?.FileName ?? _text.T("inspector.noTargetFile");
-        if (ImGui.BeginCombo("##placeTarget", targetLabel))
+        bool follow = _placeFollowCell;
+        if (ImGui.Checkbox(_text.T("inspector.followCell"), ref follow))
         {
-            if ((uint)_placeModelIndex < (uint)_scene.Plants.Count)
+            SetPlacementFollowCell(follow);
+        }
+
+        ImGui.TextDisabled(_text.T("inspector.targetFile"));
+        if (_placeFollowCell)
+        {
+            ImGui.TextWrapped(_placeTargetFile?.FileName ?? _text.T("inspector.targetAuto"));
+            if (_placeTargetPending)
             {
-                int index = 0;
-                foreach (PlantInstanceFile file in _scene.GetInstanceFiles(_placeModelIndex))
-                {
-                    bool selected = ReferenceEquals(file, _placeTargetFile);
-                    if (ImGui.Selectable($"{file.FileName}###placeTarget{index}", selected))
-                    {
-                        SetPlacementTarget(file);
-                    }
-
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip(file.LogicalPath);
-                    }
-
-                    index++;
-                }
+                ImGui.TextColored(EditorTheme.Warning, _text.T("inspector.newFile"));
             }
+        }
+        else
+        {
+            ImGui.SetNextItemWidth(-1f);
+            string targetLabel = _placeTargetFile?.FileName ?? _text.T("inspector.noTargetFile");
+            if (ImGui.BeginCombo("##placeTarget", targetLabel))
+            {
+                if ((uint)_placeModelIndex < (uint)_scene.Plants.Count)
+                {
+                    int index = 0;
+                    foreach (PlantInstanceFile file in _scene.GetInstanceFiles(_placeModelIndex))
+                    {
+                        bool selected = ReferenceEquals(file, _placeTargetFile);
+                        if (ImGui.Selectable($"{file.FileName}###placeTarget{index}", selected))
+                        {
+                            SetPlacementTarget(file);
+                        }
 
-            ImGui.EndCombo();
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip(file.LogicalPath);
+                        }
+
+                        index++;
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+        }
+
+        if (DisplayedTargetCell is TerrainCell cell)
+        {
+            DrawKeyValue(
+                _text.T("inspector.targetCell"),
+                $"{cell.X}, {cell.Z}");
         }
 
         ImGui.TextWrapped(_text.T("inspector.placementHint"));

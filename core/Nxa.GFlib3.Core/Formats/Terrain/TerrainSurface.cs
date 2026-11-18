@@ -6,8 +6,9 @@ using Nxa.GFlib3.Core.Formats.Gfpak;
 namespace Nxa.GFlib3.Core.Formats.Terrain;
 
 /// <summary>
-/// Heightmap plus the manifest height extent. Heightmap samples are normalized
-/// to 0..1; multiply by <see cref="HeightScale"/> for world units.
+/// Heightmap plus the manifest height extent and world X origin. Heightmap
+/// samples are normalized to 0..1; multiply by <see cref="HeightScale"/> for
+/// world units.
 /// </summary>
 public sealed class TerrainSurface
 {
@@ -17,7 +18,8 @@ public sealed class TerrainSurface
         float worldUnitsPerSampleX,
         float worldUnitsPerSampleZ,
         float minHeight,
-        float maxHeight)
+        float maxHeight,
+        float worldOriginX)
     {
         Heightmap = heightmap;
         HeightScale = heightScale;
@@ -25,6 +27,7 @@ public sealed class TerrainSurface
         WorldUnitsPerSampleZ = worldUnitsPerSampleZ;
         MinHeight = minHeight;
         MaxHeight = maxHeight;
+        WorldOriginX = worldOriginX;
     }
 
     public TerrainHeightmap Heightmap { get; }
@@ -49,20 +52,30 @@ public sealed class TerrainSurface
 
     public float WorldExtentZ => (Heightmap.Height - 1) * WorldUnitsPerSampleZ;
 
+    /// <summary>World X origin from the terrain manifest; zero in base areas.</summary>
+    public float WorldOriginX { get; }
+
+    public float WorldMaxX => WorldOriginX + WorldExtentX;
+
     public float GetHeightAtSample(int x, int y) => Heightmap.GetHeight(x, y) * HeightScale;
 
     /// <summary>Samples the height nearest to a world X/Z position.</summary>
     public bool TryGetWorldHeight(float worldX, float worldZ, out float height)
     {
         height = 0f;
-        if (!float.IsFinite(worldX) || !float.IsFinite(worldZ)
-            || worldX < 0f || worldZ < 0f
-            || worldX > WorldExtentX || worldZ > WorldExtentZ)
+        if (!float.IsFinite(worldX) || !float.IsFinite(worldZ))
         {
             return false;
         }
 
-        int x = (int)MathF.Round(worldX / WorldUnitsPerSampleX);
+        float localX = worldX - WorldOriginX;
+        if (localX < 0f || worldZ < 0f
+            || localX > WorldExtentX || worldZ > WorldExtentZ)
+        {
+            return false;
+        }
+
+        int x = (int)MathF.Round(localX / WorldUnitsPerSampleX);
         int y = (int)MathF.Round(worldZ / WorldUnitsPerSampleZ);
         if ((uint)x >= (uint)Heightmap.Width || (uint)y >= (uint)Heightmap.Height)
         {
@@ -114,7 +127,8 @@ public sealed class TerrainSurface
             unitsPerSampleX,
             unitsPerSampleZ,
             min * manifest.HeightScale,
-            max * manifest.HeightScale);
+            max * manifest.HeightScale,
+            manifest.WorldMinX);
     }
 
     public static TerrainSurface Load(

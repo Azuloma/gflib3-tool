@@ -20,6 +20,7 @@ public sealed class TerrainManifest
 
     private const int MaxGroups = 100_000;
     private const int MaxInstancePaths = 1_000_000;
+    private const float WorldRangeTolerance = 0.01f;
 
     private const string ModelExtension = ".trmdl";
     private const string InstanceExtension = ".trins";
@@ -36,7 +37,9 @@ public sealed class TerrainManifest
         float gridWidth,
         float gridHeight,
         float heightScale,
-        (uint X, uint Y, uint Z) cellDimensions)
+        (uint X, uint Y, uint Z) cellDimensions,
+        float worldMinX,
+        float worldMaxX)
     {
         PlantGroupCount = plantGroupCount;
         PlantGroups = plantGroups;
@@ -48,6 +51,8 @@ public sealed class TerrainManifest
         GridHeight = gridHeight;
         HeightScale = heightScale;
         CellDimensions = cellDimensions;
+        WorldMinX = worldMinX;
+        WorldMaxX = worldMaxX;
     }
 
     public uint PlantGroupCount { get; }
@@ -72,6 +77,15 @@ public sealed class TerrainManifest
 
     /// <summary>Field 2 values (1024/1024/1025); individual meanings unresolved.</summary>
     public (uint X, uint Y, uint Z) CellDimensions { get; }
+
+    /// <summary>
+    /// Terrain world X origin from field 10 table field 0. Nonzero for the
+    /// `ha_area00_s02` sub-pack (200); zero for the sampled base areas.
+    /// </summary>
+    public float WorldMinX { get; }
+
+    /// <summary>Field 10 table field 1; equals <see cref="WorldMinX"/> + grid width.</summary>
+    public float WorldMaxX { get; }
 
     /// <summary>Terrain material (<c>.trmtr</c>) referenced by the manifest.</summary>
     public string? MaterialPath { get; }
@@ -120,6 +134,25 @@ public sealed class TerrainManifest
             cells?.GetUInt32(1) ?? 0,
             cells?.GetUInt32(2) ?? 0);
 
+        FlatBufferTable? worldRange = root.GetTable(10);
+        float worldMinX = worldRange?.GetFloat(0) ?? 0f;
+        float worldMaxX = worldRange?.GetFloat(1) ?? gridWidth;
+        if (!float.IsFinite(worldMinX)
+            || !float.IsFinite(worldMaxX)
+            || worldMaxX <= worldMinX)
+        {
+            throw new InvalidDataException(
+                $"Terrain manifest world X range {worldMinX}..{worldMaxX} is not finite and increasing.");
+        }
+
+        if (worldRange is not null
+            && MathF.Abs(worldMaxX - (worldMinX + gridWidth)) > WorldRangeTolerance)
+        {
+            throw new InvalidDataException(
+                $"Terrain manifest world X range {worldMinX}..{worldMaxX} "
+                + $"does not match grid width {gridWidth}.");
+        }
+
         return new TerrainManifest(
             plantCount,
             plantGroups,
@@ -130,7 +163,9 @@ public sealed class TerrainManifest
             gridWidth,
             gridHeight,
             heightScale,
-            cellDimensions);
+            cellDimensions,
+            worldMinX,
+            worldMaxX);
     }
 
     /// <summary>

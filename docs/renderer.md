@@ -86,6 +86,9 @@ Options:
    `PlantInstance` records.
 9. Build the terrain grid from the `TerrainMaterial` heightmap with
    `TerrainSurface`/`TerrainMeshBuilder` (`--terrain-stride` for previews).
+   Apply manifest field 10's world X origin to mesh vertices and height sampling
+   so sub-pack terrain lines up with world-space vegetation (`ha_area00_s02`
+   uses X origin 200).
    Decode `SplatAlpha` slices 0/1 as the four-plus-three layer weights and
    `SplatColor0..6` as albedo; tiling is `SplatST0..6 x128` by default
    (`--terrain-tile-scale`, also a live Project-panel slider).
@@ -217,8 +220,10 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
   `ha_area00_s07` shows that interior at the origin.
 - No skinning, animations, collision, or LOD switching.
 - Stage 5 Step 1 edits existing vegetation transforms in memory through the
-  viewport gizmo. Step 2 adds terrain placement and duplication into existing
-  `.trins` files. Save and RomFS export are not implemented yet; reloading an
-  area discards the edit session.
+  viewport gizmo. Step 2 adds placement and duplication. Step 3 maps the Place
+  target to the 16×16 terrain cell under the cursor and keeps a synthetic
+  `.trins` in memory for missing cells. Save and RomFS export are not
+  implemented yet; reloading an area discards the edit session. In-game cell
+  streaming and collision updates remain unknown.
 - BNTX textures are decoded to CPU RGBA8 once; no streaming or texture cache
   eviction.

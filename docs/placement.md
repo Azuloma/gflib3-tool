@@ -54,12 +54,15 @@ Observed root fields (verified in areas 00–06 and 11):
 | 7 | table | one string: terrain material path (`area00_0_0.trmtr`) |
 | 8 | string[] | detail-map paths (`area00_0_0_detailmap_N.trtbf`) |
 | 9 | — | absent in all sampled packs |
-| 10 | float[] | eight floats, e.g. `0,0,0,0,1025,185,1025,0` |
+| 10 | table | two floats: `[WorldMinX, WorldMinX + GridWidth]` |
 
-Field 1's third float and field 10's sixth value agree and are the terrain
-height scale (185, 121.76, 200.24, 127.08, 302, 168, 36.67, 238 for areas
-00–06 and 11); see `terrain.md`. Fields 0–2, 9, and 10 are not yet used by the
-viewer.
+Field 1's third float is the terrain height scale (185, 121.756, 200.24, 127.08,
+302, 168, 36.67, 238 for areas 00–06 and 11); see `terrain.md`. Field 10's
+first value is the world X origin: 0 for every sampled pack except
+`ha_area00_s02` (200), whose second value is 712.5 (`200 + 512.5`). The previous
+eight-float reading of field 10 was incorrect. Field 10's second value is used
+as a sanity check, not as a separate Z origin; Z origin is 0 in all samples.
+Fields 0, 1 fields 3/4, and field 9 remain unused.
 
 Plant group (field 4):
 
@@ -164,23 +167,39 @@ zero; the writer rejects other layouts. The root string offset is
 bytes. The viewer's Place tool and Duplicate action use this append path; see
 `docs/editing.md` for the UI behavior.
 
-File naming:
+## Terrain cells and file naming (verified)
 
 ```text
-area00_0_0_plants_tree02_X7Z9_d0.trins      (areas 00–05)
-terrain_1_1_plants_tree01_X8Z8_d0.trins     (areas 06 and 11)
-       ^ ^             ^  ^  ^
-       | |             |  |  LOD/detail marker (d0; hypothesis)
-       | |             |  cell Z index
-       | |             cell X index
-       | terrain cell block (0_0 or 1_1 observed)
-       area id (only in the areaNN form)
+<material-stem>_<model-stem>_X<cellX>Z<cellZ>_d0.trins
 ```
 
-Two prefix forms are observed: `areaNN_0_0_...` for areas 00–05 and
-`terrain_X_Z_...` for areas 06 and 11. Both carry the same model name and
-X/Z cell indices; the prefix likely selects a terrain cell/block, but the
-mapping to world/streaming coordinates is not yet resolved.
+- `material-stem` is `manifest.MaterialPath` without `.trmtr`:
+  `area00_0_0`, `terrain_1_1`, or `terrain_area01_demo`.
+- `model-stem` is the plant group model path without `.trmdl`.
+- Only `d0` is observed; every (model, cell) pair has exactly one file.
+- The terrain uses a fixed 16×16 cell grid:
+
+```text
+cellSizeX = GridWidth / 16 = (WorldExtentX + 1) / 16
+cellSizeZ = GridHeight / 16 = (WorldExtentZ + 1) / 16
+
+cellX = floor((worldX - WorldMinX) / cellSizeX)
+cellZ = floor((GridHeight - worldZ) / cellSizeZ)   // clamp to 0..15
+```
+
+`WorldMinX` is manifest field 10's first float. Cell Z increases toward
+decreasing world Z. The mapping matched all 1,526 manifest-referenced files and
+all 6,550 instances (areas 00-06, 11, `ha_area00_s02`, `ha_area05_s02`).
+
+`ha_area00_s02` is the only sampled pack with a nonzero X origin (200); the
+viewer applies `WorldMinX` to the terrain mesh, height sampling, and terrain ray
+bounds so vegetation and terrain stay aligned.
+
+Place with `Follow terrain cell` enabled resolves the target from the hit cell.
+When that cell has no `.trins`, the editor synthesizes
+`<material-stem>_<model-stem>_X<x>Z<z>_d0.trins` in memory and registers it when
+the first instance is committed. Materializing the file and adding its path to
+the terrain manifest belong to the export step.
 
 ## Counts observed in the dump
 
@@ -194,10 +213,12 @@ mapping to world/streaming coordinates is not yet resolved.
 | `ha_area05` | 828 |
 | `ha_area06` | 121 |
 | `ha_area11` | 25 |
-| **Total** | **6,358** |
+| **Base total** | **6,358** |
 
-Each count is one `SrtInstanceBuffer` entry per `.trins` path; the table sums the
-instances inside those entries.
+The sub-packs with terrain add `ha_area00_s02` (91 files / 167 instances) and
+`ha_area05_s02` (14 files / 25 instances), for 1,526 files and 6,550 instances
+overall. Each count is one `SrtInstanceBuffer` entry per `.trins` path; the table
+sums the instances inside those entries.
 
 ## What is *not* placement data
 
@@ -226,10 +247,13 @@ The format supports adding instances, not just moving existing ones:
   path-hash/file tables.
 - Only **existing vegetation models** can be placed; authoring new plant models
   is out of scope.
-- The instance must belong to a terrain cell that the game loads. Cell mapping,
-  streaming behavior, and collision (`tree_collision_info.bin` / collision
-  packs) are unresolved; new instances may be visual-only until collision is
-  addressed.
+- The cell naming and world mapping are verified; new instances can be assigned
+  to the cell under the terrain hit. In-game streaming behavior and collision
+  (`tree_collision_info.bin` / collision packs) are still unresolved; new
+  instances may be visual-only until collision is addressed.
+- Place synthesizes a missing cell file in memory. Export must write that file
+  and add its path to the matching plant group; the gfpak/manifest writer is the
+  remaining export work.
 - Any edit requires writing the modified gfpak back into a RomFS overlay; the
   compression path is still an open question.
 
@@ -237,12 +261,12 @@ The format supports adding instances, not just moving existing ones:
 
 - Manifest file name: the entry is found structurally, but its gfpak path hash
   is not matched by any recovered name.
-- Fields 0–2, 9, and 10: dimensions and the height-like value are consistent
-  with a heightmap, but the individual field meanings are not confirmed.
-- Prefix-to-cell mapping (`areaNN_0_0` vs. `terrain_X_Z`) and streaming rules.
-- Whether appending an instance to any loaded cell is sufficient, or whether the
-  cell/grid coordinates must match the world position.
+- Fields 0, 1 fields 3/4, 2, and 9: individual meanings outside the verified
+  dimensions and height scale remain unresolved.
+- In-game streaming rules: no per-cell flags were found; the manifest lists all
+  `.trins`.
 - Collision generation/update for newly placed vegetation.
+- Whether a synthesized cell file needs any manifest metadata beyond its path.
 - Detail-group (field 6) semantics: are grass layers explicitly instanced?
 - Coordinate handedness at render time against an external game reference; the
   row-vector convention is fixed by the upload path.

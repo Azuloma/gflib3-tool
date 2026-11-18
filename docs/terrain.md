@@ -1,8 +1,8 @@
 ﻿# Terrain (heightmap and material)
 
-Status: heightmap format, height scale, and world mapping verified against areas
-00, 01, 02, 04, and 05. Splat-layer weights and procedural detail remain
-unresolved.
+Status: heightmap format, height scale, world mapping, and the manifest world X
+origin verified against areas 00-06, 11, and `ha_area00_s02`. Splat-layer
+weights and procedural detail remain unresolved.
 
 ## Where it lives
 
@@ -43,19 +43,30 @@ Verified scales:
 | `ha_area05` | 2049² | 168 | 168 |
 | `ha_area06` | 2049² | 36.67 | 36.6 |
 | `ha_area11` | 2049² | 238 | 0 (flat) |
+| `ha_area00_s02` | 513² | 121.756 | n/a (sub-pack) |
 
 `ha_area11` decodes to all zeros; its terrain is effectively flat or unused.
 
 ## World mapping (verified)
 
-- The manifest grid is 1025×1025 samples over a 1024×1024 world area; manifest
-  field 2 reports the same 1024 cell size. World units per heightmap sample are
-  `(grid - 1) / (heightmap size - 1)`:
+- Areas 00-06 use a 1025×1025 manifest grid over a 1024×1024 world extent.
+  World units per heightmap sample are `(grid - 1) / (heightmap size - 1)`:
   - 1025² heightmap: 1 unit/sample, extent 1024×1024.
   - 2049² heightmap: 0.5 units/sample, same 1024×1024 extent.
-- Column index maps to world X = column × units/sample, row index to world Z.
-  The grid origin is `(0, 0)`.
-- `Y = normalizedHeight * scale`, no vertical offset.
+- `ha_area11` uses a 2048×2048 manifest grid and a 2047×2047 extent with a
+  2049² heightmap, so its spacing is 2047/2048 = 0.99951171875 units/sample.
+  Its vegetation cells are still 128 world units across.
+- `ha_area00_s02` uses a 512.5×512.5 grid, 513² heightmap, and 511.5×511.5
+  extent at 0.999 units/sample.
+- Manifest field 10 is a two-float table `[WorldMinX, WorldMinX + GridWidth]`.
+  All sampled packs use `WorldMinX = 0` except `ha_area00_s02` (`200`). World Z
+  origin is 0 in every sample.
+- Column index maps to world X = `WorldMinX + column × units/sample`, row index
+  to world Z = `row × units/sample`.
+- `Y = normalizedHeight * scale`, no vertical offset. `TerrainSurface` exposes
+  `WorldOriginX` and `WorldMaxX`; height sampling, the terrain mesh, and terrain
+  ray bounds apply the origin.
+- Vegetation cell mapping and the 16×16 grid are documented in `placement.md`.
 
 Evidence:
 
@@ -84,8 +95,8 @@ not 2×2 cells at one unit per sample.
 Area06's `terrain_1_1` pack is a single cell: its heightmap covers the full
 1024×1024 extent but is zero outside the playable patch, so the viewer draws a
 flat surrounding plane. The area06 NPCs at world (502, 516) align with sample
-(1004, 1033) = 10.475. Streaming and hole masking for `terrain_X_Z_*` cells
-remain unresolved.
+(1004, 1033) = 10.475. Cell naming is resolved in `placement.md`; in-game
+streaming and hole masking remain unresolved.
 
 ## Splat layers
 
@@ -121,8 +132,8 @@ payloads) are not albedo textures:
 
 `TerrainMeshBuilder.Build(surface, stride)` produces a regular grid:
 
-- position `(x × unitsPerSampleX, height, y × unitsPerSampleZ)`, up-facing
-  triangle winding;
+- position `(WorldOriginX + x × unitsPerSampleX, height, y × unitsPerSampleZ)`,
+  up-facing triangle winding;
 - normals from central differences of scaled heights over world distance;
 - UV `(x / (width - 1), y / (height - 1))` in file row order;
 - `stride` samples every Nth row/column for previews.
@@ -144,7 +155,8 @@ world coordinates to samples.
 - Formal `SplatST` units (x128 is the current default) and V orientation.
 - sRGB handling for terrain albedo uploads.
 - Terrain descriptor entry 3: layer tables, quad counts, and remaining fields.
-- World offset and streaming for `terrain_X_Z_*` packs.
-- Detail groups: procedural grass scatter rules and the 17 E8 trailing
+- In-game cell streaming: no per-cell flags found; the manifest lists all
+  `.trins`. World Z origin is 0 in every sample.
+- Detail groups: procedural grass scatter rules and the 17�E8 trailing
   parameters.
 - Entry 2 (`TAG0` / `SDKV` container): role still unidentified.

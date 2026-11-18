@@ -58,6 +58,7 @@ public static class FieldSceneLoader
         using GfpakPack? baseModelPack = OpenBaseModelPack(romfs, area, modelPackName);
         using var terrainPack = new GfpakPack(
             terrainPackPath, $"bin/field/terrain/{area}/terrain/");
+        scene.TerrainLogicalFolder = terrainPack.LogicalFolder;
 
         string areaMatch = NormalizeAreaId(area);
         bool isBaseArea = areaMatch.Length == 6;
@@ -888,6 +889,10 @@ public static class FieldSceneLoader
             scene.Messages.Add($"warning: terrain manifest not found: {ex.Message}");
             return;
         }
+
+        scene.TerrainCellPrefix = manifest.MaterialPath is null
+            ? string.Empty
+            : Path.GetFileNameWithoutExtension(manifest.MaterialPath);
 
         foreach (TerrainPlantGroup group in manifest.PlantGroups)
         {

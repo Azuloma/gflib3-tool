@@ -135,8 +135,8 @@ public static class ScenePicking
 
         Vector3 direction = ray.Direction / directionLength;
         var bounds = new BoundingBox(
-            new Vector3f(0f, surface.MinHeight, 0f),
-            new Vector3f(surface.WorldExtentX, surface.MaxHeight, surface.WorldExtentZ));
+            new Vector3f(surface.WorldOriginX, surface.MinHeight, 0f),
+            new Vector3f(surface.WorldMaxX, surface.MaxHeight, surface.WorldExtentZ));
         if (!ClipRayToBounds(ray.Origin, direction, bounds, out float entry, out float exit))
         {
             return false;

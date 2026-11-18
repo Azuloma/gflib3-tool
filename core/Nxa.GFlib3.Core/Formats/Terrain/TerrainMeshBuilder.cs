@@ -17,8 +17,8 @@ public readonly record struct TerrainVertex(
 
 /// <summary>
 /// Builds a regular grid mesh from a <see cref="TerrainSurface"/>. Grid X maps to
-/// world X and grid Y to world Z using the surface's sample spacing; world offset
-/// and handedness are not applied.
+/// world X and grid Y to world Z using the surface's sample spacing and X origin.
+/// Handedness is not applied.
 /// </summary>
 public static class TerrainMeshBuilder
 {
@@ -54,7 +54,7 @@ public static class TerrainMeshBuilder
             {
                 int x = Math.Min(column * stride, width - 1);
                 var position = new Vector3f(
-                    x * surface.WorldUnitsPerSampleX,
+                    surface.WorldOriginX + (x * surface.WorldUnitsPerSampleX),
                     surface.GetHeightAtSample(x, y),
                     y * surface.WorldUnitsPerSampleZ);
                 var normal = ComputeNormal(surface, x, y);
