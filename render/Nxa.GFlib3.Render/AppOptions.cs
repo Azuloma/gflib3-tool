@@ -45,6 +45,9 @@ public sealed class AppOptions
     /// <summary>Diagnostic: frame the startup selection before the first screenshot.</summary>
     public bool FrameSelection { get; private set; }
 
+    /// <summary>Diagnostic: duplicate this instance after the first frame.</summary>
+    public int? DuplicateInstance { get; private set; }
+
     public bool NoPlants { get; private set; }
 
     public bool NoTextures { get; private set; }
@@ -160,6 +163,19 @@ public sealed class AppOptions
                 case "--frame-selection":
                     options.FrameSelection = true;
                     break;
+                case "--duplicate-instance" when i + 1 < args.Length:
+                    if (!int.TryParse(
+                            args[++i],
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out int duplicateIndex)
+                        || duplicateIndex < 0)
+                    {
+                        throw new ArgumentException("--duplicate-instance requires a non-negative integer.");
+                    }
+
+                    options.DuplicateInstance = duplicateIndex;
+                    break;
                 case "--screenshot" when i + 1 < args.Length:
                     options.ScreenshotPath = args[++i];
                     break;
@@ -220,7 +236,9 @@ public sealed class AppOptions
         "move" => GizmoMode.Move,
         "rotate" => GizmoMode.Rotate,
         "scale" => GizmoMode.Scale,
-        _ => throw new ArgumentException($"Unknown tool '{value}'; expected select, move, rotate, or scale."),
+        "place" => GizmoMode.Place,
+        _ => throw new ArgumentException(
+            $"Unknown tool '{value}'; expected select, move, rotate, scale, or place."),
     };
 }
 

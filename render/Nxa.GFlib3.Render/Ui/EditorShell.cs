@@ -28,6 +28,7 @@ public sealed partial class EditorShell
     private string _hierarchyFilter = string.Empty;
     private List<PlacedMeshGroup> _placedGroups = [];
     private List<int>[] _plantInstancesByModel = [];
+    private int _indexedInstanceRevision = -1;
     private int _areaIndex;
     private int _modelIndex;
     private SceneSelection? _pendingLoad;
@@ -96,6 +97,7 @@ public sealed partial class EditorShell
         _drag = null;
         _hoveredAxis = GizmoAxis.None;
         _selection = EditorSelection.None;
+        ResetPlacementState();
         _consoleClearedAt = 0;
         _consoleLastCount = 0;
         BuildSceneIndexes();
@@ -105,6 +107,7 @@ public sealed partial class EditorShell
     public void Draw(UiFrameContext frame)
     {
         UpdateEditorShortcuts();
+        EnsureSceneIndexes();
 
         ImGuiViewportPtr viewport = ImGui.GetMainViewport();
         ImGui.SetNextWindowPos(viewport.WorkPos);
@@ -175,6 +178,12 @@ public sealed partial class EditorShell
             if (ImGui.MenuItem(_text.T("menu.edit.redo"), "Ctrl+Y", false, _editSession.CanRedo))
             {
                 Redo();
+            }
+
+            ImGui.Separator();
+            if (ImGui.MenuItem(_text.T("menu.edit.duplicate"), "Ctrl+D", false, CanDuplicate))
+            {
+                DuplicateSelected();
             }
 
             ImGui.EndMenu();
@@ -288,6 +297,26 @@ public sealed partial class EditorShell
                 enabled: true))
         {
             SetTool(GizmoMode.Scale);
+        }
+
+        EditorIcons.ToolbarSeparator();
+        if (EditorIcons.ToolButton(
+                EditorIcon.Place,
+                _text.T("toolbar.place"),
+                active: _tool == GizmoMode.Place,
+                enabled: CanPlace))
+        {
+            SetTool(GizmoMode.Place);
+        }
+
+        ImGui.SameLine();
+        if (EditorIcons.ToolButton(
+                EditorIcon.Duplicate,
+                _text.T("toolbar.duplicate"),
+                active: false,
+                enabled: CanDuplicate))
+        {
+            DuplicateSelected();
         }
 
         EditorIcons.ToolbarSeparator();
@@ -526,6 +555,7 @@ public sealed partial class EditorShell
                 CancelDrag();
             }
 
+            ClearPlacePreview();
             ImGui.End();
             ImGui.PopStyleVar();
             return;
@@ -547,6 +577,12 @@ public sealed partial class EditorShell
 
         if (Matrix4x4.Invert(viewProjection, out Matrix4x4 inverseViewProjection))
         {
+            bool hasRay = ScenePicking.TryScreenRay(
+                localMouse,
+                imageSize,
+                inverseViewProjection,
+                out SceneRay ray);
+            UpdatePlacePreview(hovered, hasRay, ray, farPlane);
             bool gizmoConsumed = UpdateGizmoInput(
                 frame.Camera,
                 viewProjection,
@@ -559,18 +595,25 @@ public sealed partial class EditorShell
                 && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
                 && !ImGui.IsMouseDown(ImGuiMouseButton.Right)
                 && !ImGui.GetIO().WantTextInput
-                && ScenePicking.TryScreenRay(
-                    localMouse,
-                    imageSize,
-                    inverseViewProjection,
-                    out SceneRay ray))
+                && hasRay)
             {
-                Select(ScenePicking.TryPickPlant(_scene, ray, out int index)
-                    ? new EditorSelection(EditorSelectionKind.PlantInstance, index)
-                    : EditorSelection.None);
+                if (_tool == GizmoMode.Place)
+                {
+                    TryPlaceAt(ray, farPlane);
+                }
+                else
+                {
+                    Select(ScenePicking.TryPickPlant(_scene, ray, out int index)
+                        ? new EditorSelection(EditorSelectionKind.PlantInstance, index)
+                        : EditorSelection.None);
+                }
             }
 
             DrawSceneOverlay(frame.Camera, viewProjection, imageMin, imageSize, hovered, localMouse);
+        }
+        else
+        {
+            ClearPlacePreview();
         }
 
         if (hovered && _drag is null)

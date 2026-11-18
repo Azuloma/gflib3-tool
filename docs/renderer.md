@@ -40,6 +40,10 @@ Options:
 | `--screenshot-delay <s>` | Wait before the screenshot, then exit |
 | `--reload-area <name>` | Diagnostic: run the runtime switch to this area after the first frame |
 | `--reload-model <name>` | Model pack for `--reload-area`; defaults to the matching pack |
+| `--select-instance <n>` | Diagnostic: select vegetation instance `n` at startup |
+| `--tool <name>` | Diagnostic: `select`, `move`, `rotate`, `scale`, or `place` at startup |
+| `--frame-selection` | Diagnostic: frame the startup selection |
+| `--duplicate-instance <n>` | Diagnostic: duplicate instance `n` after the first frame |
 | `--terrain-stride <n>` | Sample every nth heightmap row/column (default 1) |
 | `--terrain-tile-scale <n>` | Multiply `SplatST` terrain tiling (default 128) |
 | `--no-plants`, `--no-room`, `--no-terrain`, `--no-scene`, `--no-textures` | Diagnostic rendering toggles |
@@ -145,7 +149,10 @@ the test machine, dominated by scene objects and their textures).
   `FieldScene.InstanceRevision` triggers a rebuild of only those index lists, so
   added and removed instances appear without a renderer reload. A `PlantPreview`
   transform draws one model at a prospective placement without changing scene
-  counts.
+  counts. The shell refreshes the preview after each scene render, so the
+  renderer draws the previous frame's terrain-hit preview; it is cleared when the
+  Scene panel is hidden or the tool changes. `docs/editing.md` records the
+  resulting one-frame delay.
 - Untextured water materials use a blue fallback tint. Vista shells (`*_vista*`)
   are not placed because the heightmap terrain already covers them.
 - The free-fly camera is Y-up: right mouse look, WASD, Q/E, Shift sprint, F
@@ -210,7 +217,8 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
   `ha_area00_s07` shows that interior at the origin.
 - No skinning, animations, collision, or LOD switching.
 - Stage 5 Step 1 edits existing vegetation transforms in memory through the
-  viewport gizmo. Add/duplicate, save, and RomFS export are not implemented yet;
-  reloading an area discards the edit session.
+  viewport gizmo. Step 2 adds terrain placement and duplication into existing
+  `.trins` files. Save and RomFS export are not implemented yet; reloading an
+  area discards the edit session.
 - BNTX textures are decoded to CPU RGBA8 once; no streaming or texture cache
   eviction.

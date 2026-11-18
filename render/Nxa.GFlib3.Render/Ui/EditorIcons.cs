@@ -13,6 +13,8 @@ internal enum EditorIcon
     Move,
     Rotate,
     Scale,
+    Place,
+    Duplicate,
     Frame,
     PanelInfo,
     PanelAssets,
@@ -154,6 +156,12 @@ internal static class EditorIcons
             case EditorIcon.Scale:
                 DrawScale(draw, min, size, color);
                 break;
+            case EditorIcon.Place:
+                DrawPlace(draw, min, size, color);
+                break;
+            case EditorIcon.Duplicate:
+                DrawDuplicate(draw, min, size, color);
+                break;
             case EditorIcon.Frame:
                 DrawFrame(draw, min, size, color);
                 break;
@@ -284,6 +292,22 @@ internal static class EditorIcons
             tip - (tangent * (size.X * 0.16f)) + (normal * (size.X * 0.07f)),
             tip - (tangent * (size.X * 0.16f)) - (normal * (size.X * 0.07f)),
             color);
+    }
+
+    private static void DrawPlace(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.4f;
+        Vector2 center = At(min, size, 0.5f, 0.5f);
+        draw.AddCircle(center, size.X * 0.24f, color, 16, thickness);
+        draw.AddLine(At(min, size, 0.5f, 0.10f), At(min, size, 0.5f, 0.90f), color, thickness);
+        draw.AddLine(At(min, size, 0.10f, 0.5f), At(min, size, 0.90f, 0.5f), color, thickness);
+    }
+
+    private static void DrawDuplicate(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.2f;
+        draw.AddRect(At(min, size, 0.12f, 0.12f), At(min, size, 0.60f, 0.60f), color, 1f, ImDrawFlags.None, thickness);
+        draw.AddRect(At(min, size, 0.40f, 0.40f), At(min, size, 0.88f, 0.88f), color, 1f, ImDrawFlags.None, thickness);
     }
 
     private static void DrawFrame(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)

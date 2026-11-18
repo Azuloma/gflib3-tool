@@ -43,7 +43,7 @@ public sealed partial class EditorShell
             return false;
         }
 
-        _selection = new EditorSelection(EditorSelectionKind.PlantInstance, index);
+        Select(new EditorSelection(EditorSelectionKind.PlantInstance, index));
         return true;
     }
 
@@ -71,9 +71,19 @@ public sealed partial class EditorShell
         {
             SetTool(GizmoMode.Scale);
         }
+        else if (ImGui.IsKeyPressed(ImGuiKey._5, false))
+        {
+            SetTool(GizmoMode.Place);
+        }
 
         if (!io.KeyCtrl)
         {
+            return;
+        }
+
+        if (ImGui.IsKeyPressed(ImGuiKey.D, false))
+        {
+            DuplicateSelected();
             return;
         }
 
@@ -99,12 +109,23 @@ public sealed partial class EditorShell
 
     public void SetTool(GizmoMode mode)
     {
+        if (mode == GizmoMode.Place && !CanPlace)
+        {
+            _scene.Messages.Add(
+                "warning: select a vegetation instance or model before using Place.");
+            return;
+        }
+
         if (_drag is not null)
         {
             CancelDrag();
         }
 
         _tool = mode;
+        if (mode != GizmoMode.Place)
+        {
+            ClearPlacePreview();
+        }
     }
 
     private void Undo()
@@ -112,6 +133,7 @@ public sealed partial class EditorShell
         if (_drag is null)
         {
             _editSession.Undo();
+            EnsureSceneIndexes();
         }
     }
 
@@ -120,6 +142,7 @@ public sealed partial class EditorShell
         if (_drag is null)
         {
             _editSession.Redo();
+            EnsureSceneIndexes();
         }
     }
 
@@ -145,6 +168,7 @@ public sealed partial class EditorShell
         GizmoMode.Move => "toolbar.move",
         GizmoMode.Rotate => "toolbar.rotate",
         GizmoMode.Scale => "toolbar.scale",
+        GizmoMode.Place => "toolbar.place",
         _ => "toolbar.select",
     };
 
@@ -182,7 +206,9 @@ public sealed partial class EditorShell
         }
 
         _hoveredAxis = GizmoAxis.None;
-        if (!hovered || _tool == GizmoMode.Select || !TryGetSelectedInstance(out int index))
+        if (!hovered
+            || _tool is GizmoMode.Select or GizmoMode.Place
+            || !TryGetSelectedInstance(out int index))
         {
             return false;
         }
@@ -405,7 +431,13 @@ public sealed partial class EditorShell
         ImDrawListPtr draw = ImGui.GetWindowDrawList();
         if (TryGetSelectionBounds(out BoundingBox bounds))
         {
-            DrawBoundsWireframe(draw, viewProjection, imageMin, imageSize, bounds);
+            DrawBoundsWireframe(draw, viewProjection, imageMin, imageSize, bounds, EditorTheme.Accent);
+        }
+
+        if (_tool == GizmoMode.Place)
+        {
+            DrawPlacementMarker(draw, viewProjection, imageMin, imageSize);
+            return;
         }
 
         if (_tool == GizmoMode.Select || !TryGetSelectedInstance(out int index))
@@ -545,12 +577,29 @@ public sealed partial class EditorShell
 
     private const float ParallelEpsilonSquared = 1e-6f;
 
+    private void DrawPlacementMarker(
+        ImDrawListPtr draw,
+        Matrix4x4 viewProjection,
+        Vector2 imageMin,
+        Vector2 imageSize)
+    {
+        if (_placePreviewMatrix is not Matrix4x4RowMajor matrix
+            || (uint)_placeModelIndex >= (uint)_scene.Plants.Count)
+        {
+            return;
+        }
+
+        BoundingBox bounds = SceneGeometry.OfInstance(_scene.Plants[_placeModelIndex], matrix);
+        DrawBoundsWireframe(draw, viewProjection, imageMin, imageSize, bounds, EditorTheme.Accent);
+    }
+
     private static void DrawBoundsWireframe(
         ImDrawListPtr draw,
         Matrix4x4 viewProjection,
         Vector2 imageMin,
         Vector2 imageSize,
-        BoundingBox bounds)
+        BoundingBox bounds,
+        Vector4 color)
     {
         Span<Vector3> corners = stackalloc Vector3[8];
         Span<Vector2> projected = stackalloc Vector2[8];
@@ -568,14 +617,14 @@ public sealed partial class EditorShell
                 out projected[corner]);
         }
 
-        uint color = EditorIcons.ToColor(EditorTheme.Accent);
+        uint packed = EditorIcons.ToColor(color);
         for (int edge = 0; edge < BoundsEdges.GetLength(0); edge++)
         {
             int first = BoundsEdges[edge, 0];
             int second = BoundsEdges[edge, 1];
             if (visible[first] && visible[second])
             {
-                draw.AddLine(imageMin + projected[first], imageMin + projected[second], color, 1.4f);
+                draw.AddLine(imageMin + projected[first], imageMin + projected[second], packed, 1.4f);
             }
         }
     }

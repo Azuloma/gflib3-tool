@@ -161,7 +161,8 @@ The writer appends one 64-byte matrix, increments `count`, and preserves the
 version and type name. `reserved` is absent in every sampled file and must be
 zero; the writer rejects other layouts. The root string offset is
 `0x3C + count * 64`, and the file length is the string end rounded up to four
-bytes.
+bytes. The viewer's Place tool and Duplicate action use this append path; see
+`docs/editing.md` for the UI behavior.
 
 File naming:
 

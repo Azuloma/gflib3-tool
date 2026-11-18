@@ -39,6 +39,7 @@ internal sealed class RenderApp : IDisposable
     private readonly Stopwatch _clock = new();
     private int _frame;
     private bool _screenshotWritten;
+    private bool _duplicateApplied;
     private bool _disposed;
     private IntPtr _layoutIniPath;
     private string _status = string.Empty;
@@ -120,12 +121,13 @@ internal sealed class RenderApp : IDisposable
             !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
         _shell = new EditorShell(_text, _scene, _catalog, !hasSavedLayout);
-        _shell.SetTool(_options.StartTool);
         if (_options.SelectInstance is int selectIndex && !_shell.SelectPlantInstance(selectIndex))
         {
             Console.Error.WriteLine(
                 $"warning: --select-instance {selectIndex} is outside the loaded instance range.");
         }
+
+        _shell.SetTool(_options.StartTool);
 
         if (_options.FrameSelection)
         {
@@ -156,6 +158,19 @@ internal sealed class RenderApp : IDisposable
         if (_options.ReloadArea is not null && _frame == 2)
         {
             _shell.RequestLoad(_options.ReloadArea, ResolveReloadModel(_options.ReloadArea));
+        }
+
+        int duplicateFrame = _options.ReloadArea is null ? 2 : 3;
+        if (_options.DuplicateInstance is int duplicateIndex
+            && _frame == duplicateFrame
+            && !_duplicateApplied)
+        {
+            _duplicateApplied = true;
+            if (!_shell.DuplicatePlantInstance(duplicateIndex))
+            {
+                Console.Error.WriteLine(
+                    $"warning: --duplicate-instance {duplicateIndex} could not be applied.");
+            }
         }
 
         var frame = new UiFrameContext
@@ -221,7 +236,8 @@ internal sealed class RenderApp : IDisposable
         SceneFramebuffer framebuffer = _framebuffer!;
         framebuffer.Resize(width, height);
         framebuffer.Bind();
-        _renderer!.Render(_scene, _camera, width, height);
+        _renderer!.Preview = _shell!.Preview;
+        _renderer.Render(_scene, _camera, width, height);
 
         Vector2D<int> size = _window!.FramebufferSize;
         _gl!.BindFramebuffer(FramebufferTarget.Framebuffer, 0);

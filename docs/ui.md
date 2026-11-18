@@ -106,6 +106,21 @@ The toolbar enables Select/Move/Rotate/Scale (`1`-`4`), drawing an ImGui overlay
 gizmo over the Scene image. `Ctrl+Z`/`Ctrl+Y` drive the session history, and the
 History tab lists applied and redoable edits. Details are in `docs/editing.md`.
 
+Stage 5 Step 2 adds the Place tool and Duplicate action:
+
+- The toolbar gains a crosshair Place button (`5`) and a duplicate button after
+  the transform tools. Place is enabled only with a selected vegetation model or
+  instance and a valid `.trins` target; Duplicate is enabled for a selected
+  instance with a source file.
+- The Edit menu carries `Duplicate` with `Ctrl+D`.
+- The Inspector shows a Placement section for plant models and instances: a
+  placement-model combo and a target `.trins` combo. Target labels stay as
+  `.trins` file names, with the full logical path in the tooltip.
+- A vegetation instance's Instances section also shows its source `.trins` and
+  local index.
+- In Place mode the Scene shows the terrain-hit model preview and its AABB; left
+  click appends the instance and selects it.
+
 ## Project assets
 
 `SceneCatalog` classifies packs by folder and name. Terrain and model packs pair
@@ -132,8 +147,9 @@ Copy-visible writes the currently displayed messages to the clipboard.
 ## Icons
 
 Toolbar icons are drawn as vector shapes through `ImDrawList`
-(`Ui/EditorIcons.cs`). Phase 1 provides select, move, rotate, scale, and frame.
-This avoids an icon-font dependency and keeps the glyphs crisp at 16px.
+(`Ui/EditorIcons.cs`). The set covers select, move, rotate, scale, place,
+duplicate, and frame. This avoids an icon-font dependency and keeps the glyphs
+crisp at 16px.
 
 The transform tools became active in Stage 5 Step 1 and share the toolbar's
 active/disabled treatment. They are rendered with the Unity-style active

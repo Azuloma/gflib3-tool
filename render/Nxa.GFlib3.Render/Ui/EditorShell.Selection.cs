@@ -32,6 +32,22 @@ public sealed partial class EditorShell
             _placedGroups[groupIndex].Indices.Add(i);
         }
 
+        RebuildPlantInstanceIndex();
+    }
+
+    private void EnsureSceneIndexes()
+    {
+        if (_scene.InstanceRevision == _indexedInstanceRevision)
+        {
+            return;
+        }
+
+        RebuildPlantInstanceIndex();
+        ReconcileSelectionAfterInstanceChange();
+    }
+
+    private void RebuildPlantInstanceIndex()
+    {
         _plantInstancesByModel = new List<int>[_scene.Plants.Count];
         for (int i = 0; i < _plantInstancesByModel.Length; i++)
         {
@@ -46,9 +62,28 @@ public sealed partial class EditorShell
                 _plantInstancesByModel[modelIndex].Add(i);
             }
         }
+
+        _indexedInstanceRevision = _scene.InstanceRevision;
     }
 
-    private void Select(EditorSelection selection) => _selection = selection;
+    private void ReconcileSelectionAfterInstanceChange()
+    {
+        if (_selection.Kind != EditorSelectionKind.PlantInstance
+            || (uint)_selection.Index < (uint)_scene.Instances.Count)
+        {
+            return;
+        }
+
+        _selection = (uint)_placeModelIndex < (uint)_scene.Plants.Count
+            ? new EditorSelection(EditorSelectionKind.PlantModel, _placeModelIndex)
+            : EditorSelection.None;
+    }
+
+    private void Select(EditorSelection selection)
+    {
+        _selection = selection;
+        SyncPlaceTargetFromSelection();
+    }
 
     private bool IsSelected(EditorSelectionKind kind, int index) =>
         _selection.Kind == kind && _selection.Index == index;

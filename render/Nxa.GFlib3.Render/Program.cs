@@ -143,8 +143,9 @@ static void PrintHelp()
           --reload-area <name> Diagnostic: switch to this area after the first frame
           --reload-model <name> Model pack for --reload-area (default: matching pack)
           --select-instance <n> Diagnostic: select this vegetation instance at startup
-          --tool <name>       Diagnostic: select, move, rotate, or scale at startup
+          --tool <name>       Diagnostic: select, move, rotate, scale, or place at startup
           --frame-selection   Diagnostic: frame the startup selection
+          --duplicate-instance <n> Diagnostic: duplicate this instance after the first frame
           --no-plants         Hide vegetation
           --no-room           Hide room geometry
           --no-terrain        Hide the heightmap terrain
@@ -157,6 +158,7 @@ static void PrintHelp()
         Controls:
           RMB look, WASD move, Q/E down/up, Shift sprint, F frame
           LMB select vegetation, 1-4 select/move/rotate/scale
+          5 place vegetation, Ctrl+D duplicate
           Ctrl+Z undo, Ctrl+Y redo, Esc cancel drag
         """);
 }

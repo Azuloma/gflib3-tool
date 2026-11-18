@@ -164,6 +164,7 @@ public sealed partial class EditorShell
 
         DrawGeometryComponent(model.Meshes, null);
         DrawMaterialComponent(model.Meshes.Count > 0 ? model.Meshes[0].MaterialIndex : -1);
+        DrawPlacementComponent();
     }
 
     private void DrawPlantInstanceInspector(int index)
@@ -184,7 +185,76 @@ public sealed partial class EditorShell
         {
             DrawKeyValue(_text.T("inspector.instanceIndex"), index.ToString(CultureInfo.InvariantCulture));
             DrawKeyValue(_text.T("inspector.model"), model.Name);
+            DrawKeyValue(
+                _text.T("inspector.sourceFile"),
+                instance.SourceFile?.LogicalPath ?? _text.T("common.none"));
+            DrawKeyValue(
+                _text.T("inspector.sourceIndex"),
+                instance.SourceIndex >= 0
+                    ? instance.SourceIndex.ToString(CultureInfo.InvariantCulture)
+                    : _text.T("common.none"));
         }
+
+        DrawPlacementComponent();
+    }
+
+    private void DrawPlacementComponent()
+    {
+        if (!EditorIcons.CollapsingHeader(
+                EditorIcon.Place,
+                _text.T("inspector.component.placement"),
+                ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            return;
+        }
+
+        string modelLabel = (uint)_placeModelIndex < (uint)_scene.Plants.Count
+            ? _scene.Plants[_placeModelIndex].Name
+            : _text.T("common.none");
+        ImGui.TextDisabled(_text.T("inspector.placementModel"));
+        ImGui.SetNextItemWidth(-1f);
+        if (ImGui.BeginCombo("##placeModel", modelLabel))
+        {
+            for (int i = 0; i < _scene.Plants.Count; i++)
+            {
+                if (ImGui.Selectable(_scene.Plants[i].Name, i == _placeModelIndex))
+                {
+                    SetPlacementModel(i);
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        ImGui.TextDisabled(_text.T("inspector.targetFile"));
+        ImGui.SetNextItemWidth(-1f);
+        string targetLabel = _placeTargetFile?.FileName ?? _text.T("inspector.noTargetFile");
+        if (ImGui.BeginCombo("##placeTarget", targetLabel))
+        {
+            if ((uint)_placeModelIndex < (uint)_scene.Plants.Count)
+            {
+                int index = 0;
+                foreach (PlantInstanceFile file in _scene.GetInstanceFiles(_placeModelIndex))
+                {
+                    bool selected = ReferenceEquals(file, _placeTargetFile);
+                    if (ImGui.Selectable($"{file.FileName}###placeTarget{index}", selected))
+                    {
+                        SetPlacementTarget(file);
+                    }
+
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.SetTooltip(file.LogicalPath);
+                    }
+
+                    index++;
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        ImGui.TextWrapped(_text.T("inspector.placementHint"));
     }
 
     private void DrawTerrainInspector()

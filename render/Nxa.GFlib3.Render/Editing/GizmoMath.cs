@@ -12,6 +12,7 @@ public enum GizmoMode
     Move,
     Rotate,
     Scale,
+    Place,
 }
 
 public enum GizmoAxis
