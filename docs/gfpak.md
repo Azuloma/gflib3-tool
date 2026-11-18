@@ -3,7 +3,8 @@
 Status: header, hash tables, and file table verified against the dump. Payload
 decompression verified. Name hashing and nested formats still under investigation.
 
-Implemented in `core/Nxa.GFlib3.Core/Formats/Gfpak` (`GfpakArchive`).
+Implemented in `core/Nxa.GFlib3.Core/Formats/Gfpak` (`GfpakArchive`,
+`GfpakHeader`).
 
 Primary reference: pkNX `GFPack.cs` (structure cross-checked against 678 archives).
 All findings below were also confirmed directly on the dump. Promoted from the
@@ -29,6 +30,10 @@ Immediately after the header:
 
 Example (`archive/appli/map.gfpak`): version `0x1000`, 35 files, 1 folder,
 file table `0x388`, path hashes `0x30`, folder hash `0x148`.
+
+`GfpakHeader` reads only these 24 bytes for catalog and UI metadata. It
+validates the magic and both occurrence limits without parsing the tables or
+payloads. `GfpakArchive` uses the same header size and limits.
 
 ## Path-hash table (`ptrHashPaths`)
 

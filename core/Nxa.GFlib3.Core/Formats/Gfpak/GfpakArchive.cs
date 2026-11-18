@@ -11,12 +11,10 @@ namespace Nxa.GFlib3.Core.Formats.Gfpak;
 public sealed class GfpakArchive : IDisposable
 {
     public const ulong Magic = 0x4B434150584C4647; // "GFLXPACK"
-    public const int HeaderSize = 0x18;
+    public const int HeaderSize = GfpakHeader.Size;
     public const int FileTableEntrySize = 0x18;
     public const int HashEntrySize = 0x10;
 
-    private const int MaxFileCount = 1_000_000;
-    private const int MaxFolderCount = 100_000;
     private const int MaxEntrySize = 1 << 30;
 
     private readonly Stream _stream;
@@ -226,12 +224,12 @@ public sealed class GfpakArchive : IDisposable
         int fileCount = BinaryPrimitives.ReadInt32LittleEndian(header[0x10..]);
         int folderCount = BinaryPrimitives.ReadInt32LittleEndian(header[0x14..]);
 
-        if (fileCount is < 0 or > MaxFileCount)
+        if (fileCount is < 0 or > GfpakHeader.MaxFileCount)
         {
             throw new InvalidDataException($"Invalid file count {fileCount}.");
         }
 
-        if (folderCount is < 0 or > MaxFolderCount)
+        if (folderCount is < 0 or > GfpakHeader.MaxFolderCount)
         {
             throw new InvalidDataException($"Invalid folder count {folderCount}.");
         }
