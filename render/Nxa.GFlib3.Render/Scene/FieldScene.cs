@@ -189,6 +189,9 @@ public sealed class SceneMaterial
 
     public int AmbientOcclusionTexture { get; init; } = -1;
 
+    /// <summary>Whether the material's shader uses the vertex color as albedo tint.</summary>
+    public bool UseVertexColor { get; init; }
+
     /// <summary>Multiplier for untextured surfaces; water gets a blue fallback.</summary>
     public Vector3 Tint { get; init; } = Vector3.One;
 }

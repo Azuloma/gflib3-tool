@@ -58,6 +58,7 @@ internal sealed class SceneRenderer : IDisposable
         uniform sampler2D uBaseColor;
         uniform int uHasBaseColor;
         uniform int uAlphaTest;
+        uniform int uUseVertexColor;
         uniform vec3 uLightDirection;
         uniform vec3 uTint;
 
@@ -65,7 +66,7 @@ internal sealed class SceneRenderer : IDisposable
 
         void main()
         {
-            vec3 albedo = uTint * vColor.rgb;
+            vec3 albedo = uTint * (uUseVertexColor != 0 ? vColor.rgb : vec3(1.0));
             if (uHasBaseColor != 0)
             {
                 // Model V=0 addresses the decoded image's last row; GL t=0 is the first row.
@@ -394,6 +395,7 @@ internal sealed class SceneRenderer : IDisposable
                 _white.Bind(TextureUnit.Texture0);
                 _shader.SetInt("uHasBaseColor", 0);
                 _shader.SetInt("uAlphaTest", 0);
+                _shader.SetInt("uUseVertexColor", 0);
                 _shader.SetVector3("uTint", new Vector3(0.42f, 0.53f, 0.34f));
                 _terrain.Draw(0, _terrain.IndexCount);
             }
@@ -474,6 +476,7 @@ internal sealed class SceneRenderer : IDisposable
             _shader.SetInt("uAlphaTest", 0);
         }
 
+        _shader.SetInt("uUseVertexColor", material?.UseVertexColor == true ? 1 : 0);
         _shader.SetVector3("uTint", material?.Tint ?? Vector3.One);
     }
 

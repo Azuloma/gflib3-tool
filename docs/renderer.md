@@ -56,9 +56,14 @@ Options:
    `--mesh`; otherwise the first model whose mesh path contains `room_`. A base
    area pack (`ha_areaNN` as both area and model pack) skips this by default, so
    its interior room does not appear at the origin; select a sub-pack or pass
-   `--mesh` to preview one. A model pack can contain many unrelated models (area
-   `s02` has a mountain, five event objects, a room, and an irori); merging them
-   at the origin produced overlapping geometry and made textures appear wrong.
+   `--mesh` to preview one. A matching sub-pack renders its room from the
+   resident placement; an origin preview is used only when no room placement
+   exists. When a sub-pack uses the base area model pack, only
+   `room_<area>.trmsh` is accepted; if it is absent the room is skipped instead
+   of showing an unrelated model.
+   A model pack can contain many unrelated models (area `s02` has a mountain,
+   five event objects, a room, and an irori); merging them at the origin produced
+   overlapping geometry and made textures appear wrong.
 4. For each LOD group, keep only non-`_lodN` mesh paths. Plants list every LOD
    in one group (`entries=0,1,2`); using all three overlapped the low-detail
    billboards with LOD0.
@@ -67,8 +72,9 @@ Options:
 6. Resolve TRMTR materials by name, then base-color, normal, and AO maps by the
    material's texture slots. Base color is uploaded as RGBA8. Model V maps to the
    decoded BNTX rows as `row = 1 - V`, so the model shader flips V when sampling;
-   terrain UVs are generated separately. Normal/AO are loaded but not yet
-   sampled by the shader.
+   terrain UVs are generated separately. Vertex color is used as albedo tint only
+   when `EnableVertexBaseColor` is true. Normal/AO are loaded but not yet sampled
+   by the shader.
 7. Fragments whose base-color alpha is below 0.5 are discarded, which cuts out
    leaf cards and other masked surfaces.
 8. Find the terrain manifest with `TerrainManifest.FindInArchive`, load each
@@ -173,6 +179,17 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 - Terrain albedo is splatted; normal maps, the hole map, detail grass,
   collisions, and event/NPC scenes are not rendered. Areas with no splat weight
   fall back to a flat green terrain color.
+- Multi-layer TRMTR materials (`NumMaterialLayer > 1`) are only partially
+  rendered: the viewer samples `BaseColorMap` layer 0 and ignores
+  `BaseColorMap1/2`, `UVIndexLayer1`, and vertex-color layer masks. Cave/lava
+  interiors such as `ha_area02_s02`, `ha_area03_s03`, and `ha_area05_s03`
+  therefore appear flat or white.
+- A standalone sub-pack view can leave cross-pack room references unresolved
+  (for example `ha_area00_s02` references `room_area00_s03`). Base-area views
+  exclude room catalog entries, so they do not resolve these references either;
+  standalone cross-pack room resolution is still pending.
+- Room-only sub-packs have no terrain manifest; their `terrain unavailable`
+  messages are expected.
 - There is no sky, fog, or hole masking. Distant backdrop geometry can appear
   detached from the terrain edge, and cave/hole caps render as dark surfaces.
 - The 16 MB buffers (entries 6–8) are sparse masks; their role is unresolved.

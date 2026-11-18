@@ -59,23 +59,42 @@ public static class FieldSceneLoader
         using var terrainPack = new GfpakPack(
             terrainPackPath, $"bin/field/terrain/{area}/terrain/");
 
-        bool isBaseModelPack = string.Equals(area, modelPackName, StringComparison.OrdinalIgnoreCase);
-        if (isBaseModelPack && meshFilter is null)
+        string areaMatch = NormalizeAreaId(area);
+        bool isBaseArea = areaMatch.Length == 6;
+        bool isBaseAreaModelPack = isBaseArea
+            && string.Equals(area, modelPackName, StringComparison.OrdinalIgnoreCase);
+        bool exactModelPack = string.Equals(area, modelPackName, StringComparison.OrdinalIgnoreCase);
+        bool previewRoom = meshFilter is not null || isBaseArea;
+        if (isBaseAreaModelPack && meshFilter is null)
         {
             scene.Messages.Add("room: not loaded for a base area pack (use --mesh or a sub-pack).");
         }
-        else
+        else if (previewRoom)
         {
-            LoadRoomModel(modelPack, scene, meshFilter);
+            LoadRoomModel(modelPack, scene, meshFilter, areaMatch, exactModelPack);
         }
+
         LoadTerrain(terrainPack, scene, terrainStride, terrainTileScale);
         LoadVegetation(terrainPack, scene);
         LoadScenePlacements(dumpRoot, romfs, area, modelPack, baseModelPack, scene);
+
+        // A sub-pack room is normally placed by the resident scene table; only
+        // fall back to an origin preview when no room placement exists.
+        if (!previewRoom && !HasPlacedRoom(scene))
+        {
+            LoadRoomModel(modelPack, scene, null, areaMatch, exactModelPack);
+        }
 
         scene.Messages.Insert(0, $"Loaded {area}: {scene.RoomMeshes.Count} room parts, "
             + $"{scene.PlacedMeshes.Count} placed parts, {scene.Plants.Count} plant models, "
             + $"{scene.Instances.Count} instances.");
         return scene;
+    }
+
+    private static bool HasPlacedRoom(FieldScene scene)
+    {
+        return scene.PlacedMeshes.Any(
+            mesh => mesh.Name.StartsWith("room_", StringComparison.OrdinalIgnoreCase));
     }
 
     private static List<GfpakPack> OpenAreaModelPacks(
@@ -161,7 +180,12 @@ public static class FieldSceneLoader
         return File.Exists(path) ? new GfpakPack(path, ModelPackFolder) : null;
     }
 
-    private static void LoadRoomModel(GfpakPack pack, FieldScene scene, string? meshFilter)
+    private static void LoadRoomModel(
+        GfpakPack pack,
+        FieldScene scene,
+        string? meshFilter,
+        string areaMatch,
+        bool exactModelPack)
     {
         var trmdls = new List<TrinityFile>();
 
@@ -192,7 +216,15 @@ public static class FieldSceneLoader
             return;
         }
 
-        TrinityFile selected = SelectModel(trmdls, meshFilter, scene);
+        string? requiredRoom = areaMatch.Length > 6 && !exactModelPack
+            ? "room_" + areaMatch
+            : null;
+        TrinityFile? selected = SelectModel(trmdls, meshFilter, requiredRoom, scene);
+        if (selected is null)
+        {
+            return;
+        }
+
         string modelName = selected.Trmdl!.MeshPaths.Count > 0
             ? selected.Trmdl.MeshPaths[0]
             : Path.GetFileName(pack.ArchivePath);
@@ -203,36 +235,56 @@ public static class FieldSceneLoader
         AddModelMeshes(pack, scene, selected.Trmdl, modelName, scene.RoomMeshes, seenMeshes);
     }
 
-    private static TrinityFile SelectModel(List<TrinityFile> models, string? filter, FieldScene scene)
+    private static TrinityFile? SelectModel(
+        List<TrinityFile> models,
+        string? filter,
+        string? requiredRoom,
+        FieldScene scene)
     {
-        if (string.IsNullOrWhiteSpace(filter))
+        if (!string.IsNullOrWhiteSpace(filter))
         {
             foreach (TrinityFile model in models)
             {
-                if (model.Trmdl!.MeshPaths.Any(
-                    path => path.Contains("room_", StringComparison.OrdinalIgnoreCase)))
+                TrmdlFile trmdl = model.Trmdl!;
+                bool matches = trmdl.MeshPaths.Any(
+                    path => path.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                    || trmdl.Materials.Any(
+                        material => material.Contains(filter, StringComparison.OrdinalIgnoreCase));
+                if (matches)
                 {
                     return model;
                 }
             }
 
+            scene.Messages.Add($"warning: no model matched '{filter}'; using the first model.");
             return models[0];
+        }
+
+        if (!string.IsNullOrWhiteSpace(requiredRoom))
+        {
+            string requiredMesh = requiredRoom + ".trmsh";
+            foreach (TrinityFile model in models)
+            {
+                if (model.Trmdl!.MeshPaths.Any(
+                    path => string.Equals(Path.GetFileName(path), requiredMesh, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return model;
+                }
+            }
+
+            scene.Messages.Add($"room: no '{requiredMesh}' in the model pack; skipped.");
+            return null;
         }
 
         foreach (TrinityFile model in models)
         {
-            TrmdlFile trmdl = model.Trmdl!;
-            bool matches = trmdl.MeshPaths.Any(
-                path => path.Contains(filter, StringComparison.OrdinalIgnoreCase))
-                || trmdl.Materials.Any(
-                    material => material.Contains(filter, StringComparison.OrdinalIgnoreCase));
-            if (matches)
+            if (model.Trmdl!.MeshPaths.Any(
+                path => path.Contains("room_", StringComparison.OrdinalIgnoreCase)))
             {
                 return model;
             }
         }
 
-        scene.Messages.Add($"warning: no model matched '{filter}'; using the first model.");
         return models[0];
     }
 
@@ -1058,11 +1110,28 @@ public static class FieldSceneLoader
             BaseColorTexture = baseColor,
             NormalTexture = normal,
             AmbientOcclusionTexture = ao,
+            UseVertexColor = ReadShaderBool(source, "EnableVertexBaseColor"),
             Tint = baseColor < 0 && materialName.Contains("water", StringComparison.OrdinalIgnoreCase)
                 ? new Vector3(0.18f, 0.32f, 0.45f)
                 : Vector3.One,
         });
         return scene.Materials.Count - 1;
+    }
+
+    private static bool ReadShaderBool(TrmtrMaterial material, string name)
+    {
+        foreach (TrmtrShader shader in material.Shaders)
+        {
+            foreach (TrmtrStringParameter parameter in shader.Values)
+            {
+                if (string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Equals(parameter.Value, "True", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+
+        return false;
     }
 
     private static TrmtrMaterial? FindMaterial(
