@@ -65,8 +65,10 @@ Options:
 5. Build geometry with `TrinityMeshBuilder` from the mesh's TRMBF buffer.
    A TRMSH's `BufferFilePath` resolves the exact `.trmbf` entry.
 6. Resolve TRMTR materials by name, then base-color, normal, and AO maps by the
-   material's texture slots. Base color is uploaded as RGBA8; normal/AO are
-   loaded but not yet sampled by the shader.
+   material's texture slots. Base color is uploaded as RGBA8. Model V maps to the
+   decoded BNTX rows as `row = 1 - V`, so the model shader flips V when sampling;
+   terrain UVs are generated separately. Normal/AO are loaded but not yet
+   sampled by the shader.
 7. Fragments whose base-color alpha is below 0.5 are discarded, which cuts out
    leaf cards and other masked surfaces.
 8. Find the terrain manifest with `TerrainManifest.FindInArchive`, load each

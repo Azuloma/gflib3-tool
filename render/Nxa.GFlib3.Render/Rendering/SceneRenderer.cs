@@ -68,7 +68,8 @@ internal sealed class SceneRenderer : IDisposable
             vec3 albedo = uTint * vColor.rgb;
             if (uHasBaseColor != 0)
             {
-                vec4 sampled = texture(uBaseColor, vTexCoord);
+                // Model V=0 addresses the decoded image's last row; GL t=0 is the first row.
+                vec4 sampled = texture(uBaseColor, vec2(vTexCoord.x, 1.0 - vTexCoord.y));
                 if (uAlphaTest != 0 && sampled.a < 0.5)
                 {
                     discard;

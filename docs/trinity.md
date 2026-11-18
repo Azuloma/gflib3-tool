@@ -83,6 +83,11 @@ format name. For `mirror_low_shape` vertex 0 the measured values are
 normal `(1, 0, 0)`, tangent `(0, 0, -1, 1)`, matching a right-handed frame.
 Reading the first half as W yields a zero normal and a non-unit tangent.
 
+Model texture V maps to the decoded BNTX image as `decoded row = 1 - V`
+(U unchanged): V=0 addresses the image's last row and V=1 its first row. The
+viewer applies this flip in the model shader; terrain UVs are generated
+separately and do not use this rule.
+
 Mesh part: index count, index offset (in indices, not bytes), unlabelled field,
 material name, and vertex declaration index.
 
