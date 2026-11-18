@@ -268,7 +268,7 @@ internal sealed class SceneRenderer : IDisposable
             }
 
             render.SceneMeshes = scene.Plants[model].Meshes;
-            render.Instances = instances.Select(ToMatrix).ToList();
+            render.Instances = instances.Select(SceneGeometry.ToMatrix).ToList();
             _plants.Add(render);
         }
 
@@ -481,24 +481,6 @@ internal sealed class SceneRenderer : IDisposable
     }
 
     private static Vector3 ToVector(Vector3f value) => new(value.X, value.Y, value.Z);
-
-    private static Matrix4x4 ToMatrix(Matrix4x4RowMajor value) => new(
-        value.Row0.X,
-        value.Row0.Y,
-        value.Row0.Z,
-        value.Row0.W,
-        value.Row1.X,
-        value.Row1.Y,
-        value.Row1.Z,
-        value.Row1.W,
-        value.Row2.X,
-        value.Row2.Y,
-        value.Row2.Z,
-        value.Row2.W,
-        value.Row3.X,
-        value.Row3.Y,
-        value.Row3.Z,
-        value.Row3.W);
 
     private sealed record PlacedRender(SceneMesh Mesh, GlMesh Buffer);
 

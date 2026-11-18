@@ -83,7 +83,7 @@ public sealed class FieldScene
         foreach (SceneMesh mesh in PlacedMeshes)
         {
             BoundingBox bounds = mesh.Placement is Matrix4x4 placement
-                ? TransformBounds(placement, mesh.Geometry.Bounds)
+                ? SceneGeometry.TransformBounds(mesh.Geometry.Bounds, placement)
                 : mesh.Geometry.Bounds;
             min = Min(min, bounds.Min);
             max = Max(max, bounds.Max);
@@ -129,25 +129,6 @@ public sealed class FieldScene
         }
 
         return -1;
-    }
-
-    private static BoundingBox TransformBounds(Matrix4x4 matrix, BoundingBox bounds)
-    {
-        Vector3f min = new(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-        Vector3f max = new(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
-
-        for (int corner = 0; corner < 8; corner++)
-        {
-            var local = new Vector3(
-                (corner & 1) == 0 ? bounds.Min.X : bounds.Max.X,
-                (corner & 2) == 0 ? bounds.Min.Y : bounds.Max.Y,
-                (corner & 4) == 0 ? bounds.Min.Z : bounds.Max.Z);
-            Vector3 world = Vector3.Transform(local, matrix);
-            min = Min(min, new Vector3f(world.X, world.Y, world.Z));
-            max = Max(max, new Vector3f(world.X, world.Y, world.Z));
-        }
-
-        return new BoundingBox(min, max);
     }
 
     private static Vector3f Min(Vector3f a, Vector3f b) => new(

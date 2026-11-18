@@ -163,6 +163,7 @@ Labels come from embedded `Localization/en.json` and `ja.json`. The menu switch
 changes language at runtime. A CJK font is loaded from the Windows font folder
 (`meiryo.ttc`, `msgothic.ttc`, or `YuGothM.ttc`) for Japanese glyphs at 18px.
 `Help > Controls` opens the navigation list; the Scene panel has no hint overlay.
+`F` frames the selected object, or the whole scene when nothing is selected.
 
 ## Known limitations
 

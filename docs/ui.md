@@ -4,19 +4,22 @@ The viewer uses Dear ImGui through Silk.NET and ImGui.NET. The editor shell
 follows the Unity 2019 dark editor as the visual reference: neutral gray panels,
 compact metrics, icon toolbars, tabbed docks, and a slim status bar.
 
-## Phase 1 scope
+## Phase 2a scope
 
-Phase 1 establishes the visual foundation only:
+Phase 1 established the palette, metrics, dock layout, toolbar, and status bar.
+Phase 2a adds the read-only selection and inspection layer:
 
-- Unity-style palette and metrics.
-- Programmatic default dock layout with tabbed panels.
-- Icon toolbar.
-- Bottom status bar.
+- Typed selection (`RoomMesh`, `PlacedGroup`, `PlacedMesh`, `PlantModel`,
+  `PlantInstance`, `Terrain`), cleared when a scene reloads.
+- Hierarchy tree grouped by object name, with a text filter and expandable
+  placed-object and plant-instance lists.
+- Component Inspector with Transform, Geometry, Material, Instances, and
+  Terrain sections. Fields remain read-only until Stage 5.
+- Frame selection: `F`, the toolbar button, and the Inspector button frame the
+  selected object; with no selection they frame the scene.
 
-Panel content is still the Stage 4 read-only presentation, with one addition:
-the Project panel's Area pack and Model pack selectors can reload the scene at
-runtime. The full asset browser, component-style Inspector, hierarchy tree,
-console toolbar, and selection model belong to Phase 2.
+The Project panel still uses the Phase 1 Area/Model selectors. The asset
+browser, console toolbar, and tab/section icons belong to Phase 2b.
 
 ## Layout
 
@@ -57,6 +60,23 @@ The visible part stays English, matching Unity's panel tabs. Localized strings
 remain in menus, tooltips, and panel content. Stable names are required because
 docking and saved layouts key on the full window name; a language switch must not
 move or lose a panel.
+
+## Selection and hierarchy
+
+`EditorSelection` stores the object kind and index; record equality drives the
+Hierarchy highlight. Placed meshes are grouped by `SceneMesh.Name`; groups show
+their member count and expand to individual placements. Plant models show their
+instance count and expand to global instance indices. Lists render directly;
+the largest observed model has 358 instances.
+
+The filter box matches room meshes, placed-group names, plant model names, and
+the terrain label, case-insensitively. Individual instance rows are not filtered
+by position text.
+
+Transform values come from `SceneGeometry`: resident placements decompose
+through `Matrix4x4.Decompose`, `.trins` rows use `atan2(Row2.X, Row0.X)` with
+the independent XZ/Y scale. The Inspector shows the decomposed position, yaw in
+degrees, and scale; world bounds transform the eight local corners.
 
 ## Palette
 
@@ -116,9 +136,10 @@ This avoids an icon-font dependency and keeps the glyphs crisp at 16px.
 The transform tools remain disabled until Stage 5. They are rendered with the
 Unity-style active/disabled treatment so the toolbar layout is final.
 
-ImGui tab labels cannot host arbitrary draw-list icons. Tab icons and content
-section icons are deferred to Phase 2. DPI scaling is also deferred; the current
-metrics assume a 100% display scale.
+ImGui tab labels cannot host arbitrary draw-list icons. Bottom tab icons and
+inspector section icons belong to Phase 2b; the planned approach reserves
+leading label space and draws the icon over the tab item rect. DPI scaling is
+deferred; the current metrics assume a 100% display scale.
 
 ## Docking implementation
 

@@ -169,12 +169,12 @@ internal sealed class RenderApp : IDisposable
             _window.Close();
         }
 
-        if (_shell.ResetCameraRequested)
+        if (_shell.TakeResetCameraRequest())
         {
             FrameCamera();
         }
 
-        if (_shell.FrameRequested)
+        if (_shell.TakeFrameRequest())
         {
             FrameSelection();
         }
@@ -286,6 +286,26 @@ internal sealed class RenderApp : IDisposable
 
     private void FrameSelection()
     {
+        if (_shell!.TryGetSelectionBounds(out BoundingBox bounds))
+        {
+            Vector3 min = ToVector(bounds.Min);
+            Vector3 max = ToVector(bounds.Max);
+            if (IsFinite(min)
+                && IsFinite(max)
+                && min.X <= max.X
+                && min.Y <= max.Y
+                && min.Z <= max.Z)
+            {
+                Vector3 center = (min + max) * 0.5f;
+                float radius = (max - center).Length();
+                if (float.IsFinite(radius) && radius > 0f)
+                {
+                    _camera.Frame(center, MathF.Max(radius, 1f));
+                    return;
+                }
+            }
+        }
+
         FrameCamera();
     }
 
@@ -481,6 +501,9 @@ internal sealed class RenderApp : IDisposable
     }
 
     private static Vector3 ToVector(Vector3f value) => new(value.X, value.Y, value.Z);
+
+    private static bool IsFinite(Vector3 value) =>
+        float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
 }
 
 

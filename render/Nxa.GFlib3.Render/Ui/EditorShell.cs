@@ -12,7 +12,7 @@ using Nxa.GFlib3.Render.Scene;
 namespace Nxa.GFlib3.Render.Ui;
 
 /// <summary>Unity-style dockable editor shell. Stage 4 is read-only.</summary>
-public sealed class EditorShell
+public sealed partial class EditorShell
 {
     private readonly Localizer _text;
     private readonly SceneCatalog _catalog;
@@ -22,8 +22,10 @@ public sealed class EditorShell
     private bool _showControls;
     private bool _layoutPending;
     private uint _dockspaceId;
-    private int _selectedRoomMesh = -1;
-    private int _selectedPlant = -1;
+    private EditorSelection _selection = EditorSelection.None;
+    private string _hierarchyFilter = string.Empty;
+    private List<PlacedMeshGroup> _placedGroups = [];
+    private List<int>[] _plantInstancesByModel = [];
     private int _areaIndex;
     private int _modelIndex;
     private SceneSelection? _pendingLoad;
@@ -34,6 +36,7 @@ public sealed class EditorShell
         _scene = scene;
         _catalog = catalog;
         _layoutPending = buildDefaultLayout;
+        BuildSceneIndexes();
         SyncPackSelection();
     }
 
@@ -50,6 +53,20 @@ public sealed class EditorShell
         return request;
     }
 
+    public bool TakeResetCameraRequest()
+    {
+        bool requested = ResetCameraRequested;
+        ResetCameraRequested = false;
+        return requested;
+    }
+
+    public bool TakeFrameRequest()
+    {
+        bool requested = FrameRequested;
+        FrameRequested = false;
+        return requested;
+    }
+
     public void RequestLoad(string area, string modelPack)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
@@ -60,8 +77,8 @@ public sealed class EditorShell
     public void SetScene(FieldScene scene)
     {
         _scene = scene;
-        _selectedRoomMesh = -1;
-        _selectedPlant = -1;
+        _selection = EditorSelection.None;
+        BuildSceneIndexes();
         SyncPackSelection();
     }
 
@@ -238,50 +255,6 @@ public sealed class EditorShell
         ImGui.DockSpace(_dockspaceId, size, ImGuiDockNodeFlags.None);
     }
 
-    private void DrawHierarchy()
-    {
-        if (!ImGui.Begin(EditorLayout.HierarchyWindow))
-        {
-            ImGui.End();
-            return;
-        }
-
-        if (ImGui.TreeNodeEx(_text.T("hierarchy.room"), ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            for (int i = 0; i < _scene.RoomMeshes.Count; i++)
-            {
-                bool selected = _selectedRoomMesh == i;
-                if (ImGui.Selectable(_scene.RoomMeshes[i].Name, selected))
-                {
-                    _selectedRoomMesh = i;
-                    _selectedPlant = -1;
-                }
-            }
-
-            ImGui.TreePop();
-        }
-
-        if (ImGui.TreeNodeEx(_text.T("hierarchy.plants"), ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            for (int i = 0; i < _scene.Plants.Count; i++)
-            {
-                PlantModel plant = _scene.Plants[i];
-                int count = _scene.Instances.Count(instance => instance.ModelIndex == i);
-                string label = $"{plant.Name}  ({count})";
-                bool selected = _selectedPlant == i;
-                if (ImGui.Selectable(label, selected))
-                {
-                    _selectedPlant = i;
-                    _selectedRoomMesh = -1;
-                }
-            }
-
-            ImGui.TreePop();
-        }
-
-        ImGui.End();
-    }
-
     private void DrawProject()
     {
         if (!ImGui.Begin(EditorLayout.ProjectWindow))
@@ -395,71 +368,6 @@ public sealed class EditorShell
     {
         _areaIndex = Math.Max(_catalog.IndexOfArea(_scene.AreaName), 0);
         _modelIndex = Math.Max(_catalog.IndexOfModel(_scene.ModelPackName), 0);
-    }
-
-    private void DrawInspector()
-    {
-        if (!ImGui.Begin(EditorLayout.InspectorWindow))
-        {
-            ImGui.End();
-            return;
-        }
-
-        if (_selectedRoomMesh >= 0 && _selectedRoomMesh < _scene.RoomMeshes.Count)
-        {
-            DrawRoomInspector(_scene.RoomMeshes[_selectedRoomMesh]);
-        }
-        else if (_selectedPlant >= 0 && _selectedPlant < _scene.Plants.Count)
-        {
-            DrawPlantInspector(_selectedPlant);
-        }
-        else
-        {
-            ImGui.TextDisabled(_text.T("inspector.empty"));
-        }
-
-        ImGui.End();
-    }
-
-    private void DrawRoomInspector(SceneMesh mesh)
-    {
-        DrawKeyValue(_text.T("inspector.name"), mesh.Name);
-        DrawKeyValue(_text.T("inspector.kind"), "Room mesh");
-        string material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < _scene.Materials.Count
-            ? _scene.Materials[mesh.MaterialIndex].Name
-            : _text.T("common.none");
-        DrawKeyValue(_text.T("inspector.material"), material);
-        DrawKeyValue(_text.T("inspector.vertices"), mesh.Geometry.Vertices.Length.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("inspector.indices"), mesh.Geometry.Indices.Length.ToString("N0", CultureInfo.InvariantCulture));
-        DrawBounds(mesh.Geometry.Bounds);
-
-        ImGui.Separator();
-        ImGui.TextDisabled(_text.T("inspector.readOnly"));
-        ImGui.BeginDisabled();
-        var position = Vector3.Zero;
-        var rotation = Vector3.Zero;
-        var scale = Vector3.One;
-        ImGui.DragFloat3("Position", ref position);
-        ImGui.DragFloat3("Rotation", ref rotation);
-        ImGui.DragFloat3("Scale", ref scale);
-        ImGui.EndDisabled();
-    }
-
-    private void DrawPlantInspector(int index)
-    {
-        PlantModel plant = _scene.Plants[index];
-        int instances = _scene.Instances.Count(instance => instance.ModelIndex == index);
-        DrawKeyValue(_text.T("inspector.name"), plant.Name);
-        DrawKeyValue(_text.T("inspector.kind"), _text.T("hierarchy.plants"));
-        DrawKeyValue(_text.T("project.instances"), instances.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.meshes"), plant.Meshes.Count.ToString(CultureInfo.InvariantCulture));
-        int vertices = plant.Meshes.Sum(mesh => mesh.Geometry.Vertices.Length);
-        int indices = plant.Meshes.Sum(mesh => mesh.Geometry.Indices.Length);
-        DrawKeyValue(_text.T("inspector.vertices"), vertices.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("inspector.indices"), indices.ToString("N0", CultureInfo.InvariantCulture));
-
-        ImGui.Separator();
-        ImGui.TextDisabled(_text.T("inspector.readOnly"));
     }
 
     private void DrawConsolePanels()
@@ -720,12 +628,6 @@ public sealed class EditorShell
         ImGui.TextDisabled(key);
         ImGui.SameLine(150 * EditorTheme.UiScale);
         ImGui.TextWrapped(value);
-    }
-
-    private void DrawBounds(BoundingBox bounds)
-    {
-        ImGui.TextDisabled(_text.T("inspector.bounds"));
-        ImGui.TextWrapped($"min {Format(bounds.Min)}\nmax {Format(bounds.Max)}");
     }
 
     private static string Format(Vector3f value) => $"{value.X:F2}, {value.Y:F2}, {value.Z:F2}";
