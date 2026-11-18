@@ -3,6 +3,7 @@
 
 using System.Numerics;
 using Nxa.GFlib3.Core.FlatBuffers;
+using Nxa.GFlib3.Core.Formats.Terrain;
 using Nxa.GFlib3.Render.Editing;
 using Nxa.GFlib3.Render.Scene;
 
@@ -168,14 +169,159 @@ public sealed class PlantEditSessionTests
     {
         FieldScene scene = CreateScene(out Matrix4x4RowMajor start);
         var session = new PlantEditSession(scene);
-        var invalid = new Matrix4x4RowMajor(
-            new Vector4f(float.NaN, 0f, 0f, 0f),
-            new Vector4f(0f, 1f, 0f, 0f),
-            new Vector4f(0f, 0f, 1f, 0f),
-            new Vector4f(0f, 0f, 0f, 1f));
+        Matrix4x4RowMajor invalid = NonFinite();
 
         Assert.Throws<ArgumentException>(() => session.SetMatrix(0, invalid));
     }
+
+    [Fact]
+    public void AddInstanceAppendsAndSupportsUndoRedo()
+    {
+        FieldScene scene = CreateSceneWithFile(out PlantInstanceFile file);
+        var session = new PlantEditSession(scene);
+        Matrix4x4RowMajor added = At(10f, 20f, 30f);
+        int revision = scene.InstanceRevision;
+
+        int index = session.AddInstance(file, added);
+
+        Assert.Equal(1, index);
+        Assert.Equal(2, scene.Instances.Count);
+        Assert.Equal(1, file.AddedCount);
+        Assert.Equal(1, session.DirtyCount);
+        Assert.Equal(revision + 1, scene.InstanceRevision);
+        Assert.IsType<PlantAddCommand>(session.History[0]);
+        Assert.Same(file, scene.Instances[index].SourceFile);
+        Assert.Equal(1, scene.Instances[index].SourceIndex);
+        Assert.Equal(added, scene.Instances[index].Matrix);
+        Assert.True(session.CanUndo);
+        Assert.False(session.CanRedo);
+
+        Assert.True(session.Undo());
+        Assert.Single(scene.Instances);
+        Assert.Equal(0, file.AddedCount);
+        Assert.Equal(0, session.DirtyCount);
+        Assert.Equal(revision + 2, scene.InstanceRevision);
+        Assert.True(session.CanRedo);
+
+        Assert.True(session.Redo());
+        Assert.Equal(2, scene.Instances.Count);
+        Assert.Same(file, scene.Instances[1].SourceFile);
+        Assert.Equal(1, scene.Instances[1].SourceIndex);
+        Assert.Equal(1, file.AddedCount);
+        Assert.Equal(1, session.DirtyCount);
+        Assert.Equal(revision + 3, scene.InstanceRevision);
+    }
+
+    [Fact]
+    public void AddedInstanceTransformDoesNotDoubleCountDirty()
+    {
+        FieldScene scene = CreateSceneWithFile(out PlantInstanceFile file);
+        var session = new PlantEditSession(scene);
+        Matrix4x4RowMajor before = At(5f, 0f, 0f);
+        Matrix4x4RowMajor after = At(6f, 0f, 0f);
+        int index = session.AddInstance(file, before);
+
+        session.SetMatrix(index, after);
+        session.Commit(index, before, after);
+
+        Assert.Equal(2, session.EditCount);
+        Assert.Equal(1, session.DirtyCount);
+        Assert.True(session.Undo());
+        Assert.Equal(before, scene.Instances[index].Matrix);
+        Assert.Equal(1, session.DirtyCount);
+        Assert.True(session.Undo());
+        Assert.Single(scene.Instances);
+        Assert.Equal(0, session.DirtyCount);
+        Assert.True(session.Redo());
+        Assert.Equal(1, session.DirtyCount);
+        Assert.True(session.Redo());
+        Assert.Equal(after, scene.Instances[index].Matrix);
+        Assert.Equal(1, session.DirtyCount);
+    }
+
+    [Fact]
+    public void AddInstanceRejectsForeignFileAndNonFiniteMatrix()
+    {
+        FieldScene scene = CreateSceneWithFile(out PlantInstanceFile file);
+        var session = new PlantEditSession(scene);
+        var foreign = new PlantInstanceFile
+        {
+            LogicalPath = "bin/field/terrain/foreign/terrain/foreign.trins",
+            ModelIndex = 0,
+            OriginalCount = 0,
+        };
+
+        Assert.Throws<ArgumentException>(() => session.AddInstance(foreign, At(0f, 0f, 0f)));
+        Assert.Throws<ArgumentException>(() => session.AddInstance(file, NonFinite()));
+        Assert.Single(scene.Instances);
+        Assert.Equal(0, file.AddedCount);
+        Assert.Equal(0, session.DirtyCount);
+    }
+
+    [Fact]
+    public void AddAfterUndoDropsRedoTail()
+    {
+        FieldScene scene = CreateSceneWithFile(out PlantInstanceFile file);
+        var session = new PlantEditSession(scene);
+        session.AddInstance(file, At(1f, 0f, 0f));
+        session.Undo();
+        Assert.True(session.CanRedo);
+
+        int index = session.AddInstance(file, At(2f, 0f, 0f));
+
+        Assert.Equal(1, index);
+        Assert.False(session.CanRedo);
+        Assert.Equal(2, scene.Instances.Count);
+        Assert.Equal(1, file.AddedCount);
+        Assert.Equal(2f, scene.Instances[index].Matrix.Row3.X);
+        Assert.Equal(1, session.DirtyCount);
+    }
+
+    [Fact]
+    public void AddInstanceRejectsSourceAtLimit()
+    {
+        FieldScene scene = CreateSceneWithFile(out _);
+        var fullFile = new PlantInstanceFile
+        {
+            LogicalPath = "bin/field/terrain/full/terrain/full.trins",
+            ModelIndex = 0,
+            OriginalCount = TrinsFile.MaxInstances,
+        };
+        scene.InstanceFiles.Add(fullFile);
+        var session = new PlantEditSession(scene);
+
+        Assert.Throws<InvalidDataException>(() => session.AddInstance(fullFile, At(0f, 0f, 0f)));
+    }
+
+    private static FieldScene CreateSceneWithFile(out PlantInstanceFile file)
+    {
+        var scene = new FieldScene
+        {
+            AreaName = "test",
+            ModelPackName = "test",
+            DumpRoot = ".",
+        };
+        scene.Plants.Add(new PlantModel { Name = "plant" });
+        file = new PlantInstanceFile
+        {
+            LogicalPath = "bin/field/terrain/test/terrain/test.trins",
+            ModelIndex = 0,
+            OriginalCount = 1,
+        };
+        scene.InstanceFiles.Add(file);
+        scene.Instances.Add(new PlantInstance(0, At(0f, 0f, 0f))
+        {
+            SourceFile = file,
+            SourceIndex = 0,
+        });
+        return scene;
+    }
+
+    private static Matrix4x4RowMajor NonFinite() => new(
+        new Vector4f(float.NaN, 0f, 0f, 0f),
+        new Vector4f(0f, 1f, 0f, 0f),
+        new Vector4f(0f, 0f, 1f, 0f),
+        new Vector4f(0f, 0f, 0f, 1f));
 
     private static FieldScene CreateScene(out Matrix4x4RowMajor start)
     {

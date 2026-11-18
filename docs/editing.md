@@ -72,16 +72,22 @@ Stage 4.
 
 `PlantEditSession` owns the edit state:
 
+- History entries are either transform commands or add commands.
 - `SetMatrix` applies a live drag frame without recording history.
-- `Commit` records one change when the drag ends; identical matrices are
+- `Commit` records one transform when the drag ends; identical matrices are
   ignored, and a new commit clears the redo tail.
-- `Undo`/`Redo` restore the stored before/after matrices.
+- `AddInstance` appends a matrix to an existing `.trins` source, records one
+  add, and bumps the scene instance revision. Adds are append-only; undo removes
+  the last appended instance and redo inserts it again.
+- `Undo`/`Redo` restore transform before/after matrices or remove/reinsert an
+  added instance.
 - History is linear, capped at 512 entries. Undo/redo shortcuts are `Ctrl+Z`
   and `Ctrl+Y` (also `Ctrl+Shift+Z` for redo), disabled while a text field is
   focused or a drag is active.
 - The History tab lists applied entries normally and redoable entries dimmed.
 - Reloading an area creates a new session and reports how many instances still
-  differ from their original matrices. Undone edits do not count as dirty.
+  differ from their original matrices. Added instances count as dirty; undone
+  edits do not count.
 
 ## Limitations
 

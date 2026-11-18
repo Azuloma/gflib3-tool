@@ -31,8 +31,8 @@ public sealed partial class EditorShell
         int first = Math.Max(0, _editSession.History.Count - HistoryDisplayLimit);
         for (int i = first; i < _editSession.History.Count; i++)
         {
-            PlantTransformChange change = _editSession.History[i];
-            string line = HistoryLine(change, i);
+            PlantEditCommand command = _editSession.History[i];
+            string line = HistoryLine(command, i);
             if (i < applied)
             {
                 ImGui.BulletText(line);
@@ -46,11 +46,21 @@ public sealed partial class EditorShell
         ImGui.EndChild();
     }
 
-    private static string HistoryLine(PlantTransformChange change, int index)
+    private static string HistoryLine(PlantEditCommand command, int index)
     {
-        string before = FormatPosition(change.Before);
-        string after = FormatPosition(change.After);
-        return $"#{index + 1}  instance {change.InstanceIndex}: {before} -> {after}";
+        string prefix = $"#{index + 1}  ";
+        return command switch
+        {
+            PlantTransformCommand transform =>
+                prefix
+                + $"instance {transform.InstanceIndex}: "
+                + $"{FormatPosition(transform.Before)} -> {FormatPosition(transform.After)}",
+            PlantAddCommand add =>
+                prefix
+                + $"add instance {add.InstanceIndex}: "
+                + FormatPosition(add.Instance.Matrix),
+            _ => prefix + $"instance {command.InstanceIndex}",
+        };
     }
 
     private static string FormatPosition(Matrix4x4RowMajor matrix) =>

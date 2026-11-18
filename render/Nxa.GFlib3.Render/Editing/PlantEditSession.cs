@@ -2,27 +2,58 @@
 // Copyright 2026 the NXAevora Projects
 
 using Nxa.GFlib3.Core.FlatBuffers;
+using Nxa.GFlib3.Core.Formats.Terrain;
 using Nxa.GFlib3.Render.Scene;
 
 namespace Nxa.GFlib3.Render.Editing;
 
+/// <summary>One undoable vegetation edit.</summary>
+public abstract record PlantEditCommand(int InstanceIndex);
+
 /// <summary>One committed instance transform change.</summary>
-public readonly record struct PlantTransformChange(
-    int InstanceIndex,
-    Matrix4x4RowMajor Before,
-    Matrix4x4RowMajor After);
+public sealed record PlantTransformCommand : PlantEditCommand
+{
+    public PlantTransformCommand(
+        int instanceIndex,
+        Matrix4x4RowMajor before,
+        Matrix4x4RowMajor after)
+        : base(instanceIndex)
+    {
+        Before = before;
+        After = after;
+    }
+
+    public Matrix4x4RowMajor Before { get; }
+
+    public Matrix4x4RowMajor After { get; }
+}
+
+/// <summary>One appended instance, removed again when the edit is undone.</summary>
+public sealed record PlantAddCommand : PlantEditCommand
+{
+    public PlantAddCommand(int instanceIndex, PlantInstance instance)
+        : base(instanceIndex)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        Instance = instance;
+    }
+
+    public PlantInstance Instance { get; }
+}
 
 /// <summary>
-/// Mutates the scene's instance matrices and records linear undo/redo history.
-/// Live drag updates use <see cref="SetMatrix"/>; a drag commits once on release.
+/// Mutates the scene's instance list and matrices, recording linear undo/redo
+/// history. Live drag updates use <see cref="SetMatrix"/>; a drag commits once
+/// on release.
 /// </summary>
 public sealed class PlantEditSession
 {
     public const int MaxHistoryEntries = 512;
 
     private readonly FieldScene _scene;
-    private readonly List<PlantTransformChange> _history = [];
+    private readonly List<PlantEditCommand> _history = [];
     private readonly Dictionary<int, Matrix4x4RowMajor> _originalMatrices = [];
+    private readonly HashSet<int> _addedInstances = [];
     private int _position;
 
     public PlantEditSession(FieldScene scene)
@@ -30,7 +61,7 @@ public sealed class PlantEditSession
         _scene = scene ?? throw new ArgumentNullException(nameof(scene));
     }
 
-    public IReadOnlyList<PlantTransformChange> History => _history;
+    public IReadOnlyList<PlantEditCommand> History => _history;
 
     /// <summary>Number of applied history entries; entries after it are redoable.</summary>
     public int HistoryPosition => _position;
@@ -41,14 +72,19 @@ public sealed class PlantEditSession
 
     public int EditCount => _history.Count;
 
-    /// <summary>Instances whose current matrix differs from the session start.</summary>
+    /// <summary>Instances whose current state differs from the session start.</summary>
     public int DirtyCount
     {
         get
         {
-            int dirty = 0;
+            int dirty = _addedInstances.Count;
             foreach ((int index, Matrix4x4RowMajor original) in _originalMatrices)
             {
+                if (_addedInstances.Contains(index))
+                {
+                    continue;
+                }
+
                 if ((uint)index < (uint)_scene.Instances.Count
                     && _scene.Instances[index].Matrix != original)
                 {
@@ -74,7 +110,11 @@ public sealed class PlantEditSession
         }
 
         PlantInstance instance = Instance(index);
-        _originalMatrices.TryAdd(index, instance.Matrix);
+        if (!_addedInstances.Contains(index))
+        {
+            _originalMatrices.TryAdd(index, instance.Matrix);
+        }
+
         instance.Matrix = matrix;
     }
 
@@ -87,24 +127,69 @@ public sealed class PlantEditSession
         }
 
         Instance(index).Matrix = after;
-        _originalMatrices.TryAdd(index, before);
+        if (!_addedInstances.Contains(index))
+        {
+            _originalMatrices.TryAdd(index, before);
+        }
+
         if (before == after)
         {
             return;
         }
 
-        if (_position < _history.Count)
+        AppendHistory(new PlantTransformCommand(index, before, after));
+    }
+
+    /// <summary>Appends a matrix to a scene source file and records one add.</summary>
+    public int AddInstance(PlantInstanceFile file, Matrix4x4RowMajor matrix)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        if (!IsFinite(matrix))
         {
-            _history.RemoveRange(_position, _history.Count - _position);
+            throw new ArgumentException("Instance matrix contains a non-finite value.", nameof(matrix));
         }
 
-        _history.Add(new PlantTransformChange(index, before, after));
-        if (_history.Count > MaxHistoryEntries)
+        if (!_scene.InstanceFiles.Contains(file))
         {
-            _history.RemoveAt(0);
+            throw new ArgumentException(
+                "The TRINS source file does not belong to this scene.",
+                nameof(file));
         }
 
-        _position = _history.Count;
+        if ((uint)file.ModelIndex >= (uint)_scene.Plants.Count)
+        {
+            throw new ArgumentException(
+                $"TRINS source model index {file.ModelIndex} is outside the scene plant range.",
+                nameof(file));
+        }
+
+        if (file.OriginalCount < 0 || file.AddedCount < 0)
+        {
+            throw new ArgumentException(
+                "The TRINS source file has a negative instance count.",
+                nameof(file));
+        }
+
+        long sourceIndex = (long)file.OriginalCount + file.AddedCount;
+        if (sourceIndex >= TrinsFile.MaxInstances)
+        {
+            throw new InvalidDataException(
+                $"TRINS source '{file.LogicalPath}' has reached the {TrinsFile.MaxInstances} instance limit.");
+        }
+
+        int sceneIndex = _scene.Instances.Count;
+        var instance = new PlantInstance(file.ModelIndex, matrix)
+        {
+            SourceFile = file,
+            SourceIndex = (int)sourceIndex,
+        };
+
+        _scene.Instances.Add(instance);
+        file.AddedCount++;
+        _addedInstances.Add(sceneIndex);
+        _scene.NotifyInstancesChanged();
+        AppendHistory(new PlantAddCommand(sceneIndex, instance));
+        return sceneIndex;
     }
 
     public bool Undo()
@@ -114,8 +199,17 @@ public sealed class PlantEditSession
             return false;
         }
 
-        PlantTransformChange change = _history[_position - 1];
-        Instance(change.InstanceIndex).Matrix = change.Before;
+        PlantEditCommand command = _history[_position - 1];
+        switch (command)
+        {
+            case PlantTransformCommand transform:
+                Instance(transform.InstanceIndex).Matrix = transform.Before;
+                break;
+            case PlantAddCommand add:
+                RemoveAdded(add);
+                break;
+        }
+
         _position--;
         return true;
     }
@@ -127,10 +221,89 @@ public sealed class PlantEditSession
             return false;
         }
 
-        PlantTransformChange change = _history[_position];
-        Instance(change.InstanceIndex).Matrix = change.After;
+        PlantEditCommand command = _history[_position];
+        switch (command)
+        {
+            case PlantTransformCommand transform:
+                Instance(transform.InstanceIndex).Matrix = transform.After;
+                break;
+            case PlantAddCommand add:
+                ReinsertAdded(add);
+                break;
+        }
+
         _position++;
         return true;
+    }
+
+    private void RemoveAdded(PlantAddCommand command)
+    {
+        int index = command.InstanceIndex;
+        if ((uint)index >= (uint)_scene.Instances.Count
+            || !ReferenceEquals(_scene.Instances[index], command.Instance))
+        {
+            throw new InvalidOperationException(
+                $"Cannot undo add for instance {index}; the scene no longer matches the append-only history.");
+        }
+
+        PlantInstanceFile? source = command.Instance.SourceFile;
+        if (source is not null)
+        {
+            if (source.AddedCount <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"TRINS source '{source.LogicalPath}' has no appended instance to remove.");
+            }
+
+            source.AddedCount--;
+        }
+
+        _scene.Instances.RemoveAt(index);
+        _addedInstances.Remove(index);
+        _scene.NotifyInstancesChanged();
+    }
+
+    private void ReinsertAdded(PlantAddCommand command)
+    {
+        int index = command.InstanceIndex;
+        if (index != _scene.Instances.Count)
+        {
+            throw new InvalidOperationException(
+                $"Cannot redo add for instance {index}; the scene has {_scene.Instances.Count} instances.");
+        }
+
+        PlantInstanceFile? source = command.Instance.SourceFile;
+        if (source is not null)
+        {
+            if (source.NextIndex != command.Instance.SourceIndex)
+            {
+                throw new InvalidOperationException(
+                    $"TRINS source '{source.LogicalPath}' next index {source.NextIndex} "
+                    + $"does not match the redo source index {command.Instance.SourceIndex}.");
+            }
+
+            source.AddedCount++;
+        }
+
+        _scene.Instances.Insert(index, command.Instance);
+        _addedInstances.Add(index);
+        _scene.NotifyInstancesChanged();
+    }
+
+    private void AppendHistory(PlantEditCommand command)
+    {
+        if (_position < _history.Count)
+        {
+            _history.RemoveRange(_position, _history.Count - _position);
+        }
+
+        _history.Add(command);
+        if (_history.Count > MaxHistoryEntries)
+        {
+            _history.RemoveAt(0);
+        }
+
+        _position = _history.Count;
     }
 
     private PlantInstance Instance(int index)
