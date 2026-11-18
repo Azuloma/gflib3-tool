@@ -124,7 +124,7 @@ public sealed partial class EditorShell
 
     private void DrawPlacedGroupInspector(PlacedMeshGroup group)
     {
-        if (ImGui.CollapsingHeader(_text.T("inspector.component.instances"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (EditorIcons.CollapsingHeader(EditorIcon.ComponentInstances, _text.T("inspector.component.instances"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawKeyValue(_text.T("project.meshes"), group.Indices.Count.ToString(CultureInfo.InvariantCulture));
             DrawBounds(_text.T("inspector.boundsWorld"), PlacedGroupBounds(group));
@@ -134,7 +134,7 @@ public sealed partial class EditorShell
         BoundingBox worldBounds = PlacedGroupBounds(group);
         DrawGeometryComponent(meshes, worldBounds);
 
-        if (ImGui.CollapsingHeader(_text.T("inspector.component.material"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (EditorIcons.CollapsingHeader(EditorIcon.ComponentMaterial, _text.T("inspector.component.material"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             List<string> materials = meshes
                 .Select(mesh => MaterialName(mesh.MaterialIndex))
@@ -156,7 +156,7 @@ public sealed partial class EditorShell
     {
         PlantModel model = _scene.Plants[modelIndex];
         List<int> instances = _plantInstancesByModel[modelIndex];
-        if (ImGui.CollapsingHeader(_text.T("inspector.component.instances"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (EditorIcons.CollapsingHeader(EditorIcon.ComponentInstances, _text.T("inspector.component.instances"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawKeyValue(_text.T("project.instances"), instances.Count.ToString("N0", CultureInfo.InvariantCulture));
             DrawKeyValue(_text.T("project.meshes"), model.Meshes.Count.ToString(CultureInfo.InvariantCulture));
@@ -180,7 +180,7 @@ public sealed partial class EditorShell
         DrawGeometryComponent(model.Meshes, SceneGeometry.OfInstance(model, instance.Matrix));
         DrawMaterialComponent(model.Meshes.Count > 0 ? model.Meshes[0].MaterialIndex : -1);
 
-        if (ImGui.CollapsingHeader(_text.T("inspector.component.instances")))
+        if (EditorIcons.CollapsingHeader(EditorIcon.ComponentInstances, _text.T("inspector.component.instances")))
         {
             DrawKeyValue(_text.T("inspector.instanceIndex"), index.ToString(CultureInfo.InvariantCulture));
             DrawKeyValue(_text.T("inspector.model"), model.Name);
@@ -195,7 +195,7 @@ public sealed partial class EditorShell
             return;
         }
 
-        if (ImGui.CollapsingHeader(_text.T("inspector.component.terrain"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (EditorIcons.CollapsingHeader(EditorIcon.ComponentTerrain, _text.T("inspector.component.terrain"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawKeyValue(
                 _text.T("inspector.heightmap"),
@@ -216,7 +216,7 @@ public sealed partial class EditorShell
 
     private void DrawTransformComponent(SceneTransform transform)
     {
-        if (!ImGui.CollapsingHeader(_text.T("inspector.component.transform"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (!EditorIcons.CollapsingHeader(EditorIcon.ComponentTransform, _text.T("inspector.component.transform"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             return;
         }
@@ -233,7 +233,7 @@ public sealed partial class EditorShell
 
     private void DrawGeometryComponent(List<SceneMesh> meshes, BoundingBox? worldBounds)
     {
-        if (!ImGui.CollapsingHeader(_text.T("inspector.component.geometry"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (!EditorIcons.CollapsingHeader(EditorIcon.ComponentGeometry, _text.T("inspector.component.geometry"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             return;
         }
@@ -254,7 +254,7 @@ public sealed partial class EditorShell
 
     private void DrawMaterialComponent(int materialIndex)
     {
-        if (!ImGui.CollapsingHeader(_text.T("inspector.component.material"), ImGuiTreeNodeFlags.DefaultOpen))
+        if (!EditorIcons.CollapsingHeader(EditorIcon.ComponentMaterial, _text.T("inspector.component.material"), ImGuiTreeNodeFlags.DefaultOpen))
         {
             return;
         }

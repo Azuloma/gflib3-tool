@@ -2,6 +2,7 @@
 // Copyright 2026 the NXAevora Projects
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ImGuiNET;
 
 namespace Nxa.GFlib3.Render.Ui;
@@ -13,6 +14,20 @@ internal enum EditorIcon
     Rotate,
     Scale,
     Frame,
+    PanelInfo,
+    PanelAssets,
+    PanelConsole,
+    PanelValidation,
+    PanelHistory,
+    ComponentTransform,
+    ComponentGeometry,
+    ComponentMaterial,
+    ComponentInstances,
+    ComponentTerrain,
+    AssetTerrain,
+    AssetModel,
+    AssetAuxiliary,
+    AssetOther,
 }
 
 /// <summary>Draws the compact editor toolbar icons as vector shapes.</summary>
@@ -64,6 +79,64 @@ internal static class EditorIcons
         ImGui.SameLine(0f, 6f);
     }
 
+    public static bool BeginTabItem(
+        EditorIcon icon,
+        string label,
+        string id,
+        ImGuiTabItemFlags flags = ImGuiTabItemFlags.None)
+    {
+        // The managed wrapper only exposes the overload that adds a close
+        // button. Pass a null p_open to the native export instead.
+        IntPtr text = Marshal.StringToCoTaskMemUTF8($"    {label}###{id}");
+        bool visible;
+        try
+        {
+            visible = IgBeginTabItem(text, IntPtr.Zero, flags);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(text);
+        }
+
+        if (ImGui.IsItemVisible())
+        {
+            DrawItemIcon(
+                icon,
+                ImGui.GetItemRectMin(),
+                ImGui.GetItemRectSize().Y,
+                ImGui.GetStyle().FramePadding.X);
+        }
+
+        return visible;
+    }
+
+    public static bool CollapsingHeader(
+        EditorIcon icon,
+        string label,
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.None)
+    {
+        bool open = ImGui.CollapsingHeader($"    {label}", flags);
+        DrawItemIcon(
+            icon,
+            ImGui.GetItemRectMin(),
+            ImGui.GetItemRectSize().Y,
+            ImGui.GetTreeNodeToLabelSpacing());
+        return open;
+    }
+
+    public static void Inline(EditorIcon icon)
+    {
+        float size = MathF.Max(12f, ImGui.GetTextLineHeight() - 2f);
+        Vector2 min = ImGui.GetCursorScreenPos();
+        ImGui.Dummy(new Vector2(size, size));
+        Draw(
+            ImGui.GetWindowDrawList(),
+            icon,
+            min + new Vector2(0f, 1f),
+            new Vector2(size, size),
+            ToColor(EditorTheme.TextMuted));
+    }
+
     public static void Draw(ImDrawListPtr draw, EditorIcon icon, Vector2 min, Vector2 size, uint color)
     {
         switch (icon)
@@ -72,6 +145,7 @@ internal static class EditorIcons
                 DrawSelect(draw, min, size, color);
                 break;
             case EditorIcon.Move:
+            case EditorIcon.ComponentTransform:
                 DrawMove(draw, min, size, color);
                 break;
             case EditorIcon.Rotate:
@@ -83,7 +157,59 @@ internal static class EditorIcons
             case EditorIcon.Frame:
                 DrawFrame(draw, min, size, color);
                 break;
+            case EditorIcon.PanelInfo:
+                DrawInfo(draw, min, size, color);
+                break;
+            case EditorIcon.PanelAssets:
+                DrawFolder(draw, min, size, color);
+                break;
+            case EditorIcon.PanelConsole:
+                DrawConsole(draw, min, size, color);
+                break;
+            case EditorIcon.PanelValidation:
+                DrawCheck(draw, min, size, color);
+                break;
+            case EditorIcon.PanelHistory:
+                DrawHistory(draw, min, size, color);
+                break;
+            case EditorIcon.ComponentGeometry:
+            case EditorIcon.AssetModel:
+                DrawCube(draw, min, size, color);
+                break;
+            case EditorIcon.ComponentMaterial:
+                DrawMaterial(draw, min, size, color);
+                break;
+            case EditorIcon.ComponentInstances:
+                DrawStack(draw, min, size, color);
+                break;
+            case EditorIcon.ComponentTerrain:
+            case EditorIcon.AssetTerrain:
+                DrawMountain(draw, min, size, color);
+                break;
+            case EditorIcon.AssetAuxiliary:
+                DrawCrate(draw, min, size, color);
+                break;
+            case EditorIcon.AssetOther:
+                DrawDots(draw, min, size, color);
+                break;
         }
+    }
+
+    private static void DrawItemIcon(EditorIcon icon, Vector2 min, float height, float xOffset)
+    {
+        float size = MathF.Min(14f * EditorTheme.UiScale, height - (2f * EditorTheme.UiScale));
+        if (size <= 0f)
+        {
+            return;
+        }
+
+        var position = new Vector2(min.X + xOffset, min.Y + ((height - size) * 0.5f));
+        Draw(
+            ImGui.GetWindowDrawList(),
+            icon,
+            position,
+            new Vector2(size, size),
+            ToColor(EditorTheme.TextPrimary));
     }
 
     public static uint ToColor(Vector4 color) => ImGui.ColorConvertFloat4ToU32(color);
@@ -176,6 +302,127 @@ internal static class EditorIcons
         draw.AddRectFilled(At(min, size, 0.44f, 0.44f), At(min, size, 0.56f, 0.56f), color, 0.5f);
     }
 
+    private static void DrawInfo(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        Vector2 center = At(min, size, 0.5f, 0.5f);
+        draw.AddCircle(center, size.X * 0.38f, color, 20, thickness);
+        draw.AddCircleFilled(At(min, size, 0.5f, 0.32f), size.X * 0.055f, color);
+        draw.AddLine(At(min, size, 0.5f, 0.45f), At(min, size, 0.5f, 0.72f), color, thickness);
+    }
+
+    private static void DrawFolder(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        Vector2[] points =
+        [
+            At(min, size, 0.08f, 0.28f),
+            At(min, size, 0.40f, 0.28f),
+            At(min, size, 0.48f, 0.38f),
+            At(min, size, 0.92f, 0.38f),
+            At(min, size, 0.92f, 0.84f),
+            At(min, size, 0.08f, 0.84f),
+        ];
+        draw.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.Closed, thickness);
+        draw.AddLine(At(min, size, 0.08f, 0.46f), At(min, size, 0.92f, 0.46f), color, 1f);
+    }
+
+    private static void DrawConsole(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        draw.AddRect(At(min, size, 0.08f, 0.16f), At(min, size, 0.92f, 0.84f), color, 1f, ImDrawFlags.None, thickness);
+        draw.AddLine(At(min, size, 0.24f, 0.36f), At(min, size, 0.42f, 0.50f), color, thickness);
+        draw.AddLine(At(min, size, 0.42f, 0.50f), At(min, size, 0.24f, 0.64f), color, thickness);
+        draw.AddLine(At(min, size, 0.52f, 0.66f), At(min, size, 0.74f, 0.66f), color, thickness);
+    }
+
+    private static void DrawCheck(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.6f;
+        draw.AddLine(At(min, size, 0.12f, 0.52f), At(min, size, 0.38f, 0.78f), color, thickness);
+        draw.AddLine(At(min, size, 0.38f, 0.78f), At(min, size, 0.88f, 0.22f), color, thickness);
+    }
+
+    private static void DrawHistory(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        Vector2 center = At(min, size, 0.52f, 0.52f);
+        draw.AddCircle(center, size.X * 0.34f, color, 20, thickness);
+        draw.AddLine(center, At(min, size, 0.52f, 0.30f), color, thickness);
+        draw.AddLine(center, At(min, size, 0.68f, 0.58f), color, thickness);
+    }
+
+    private static void DrawCube(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.2f;
+        Vector2 frontMin = At(min, size, 0.10f, 0.38f);
+        Vector2 frontMax = At(min, size, 0.62f, 0.88f);
+        var offset = new Vector2(size.X * 0.26f, -size.Y * 0.24f);
+        draw.AddRect(frontMin, frontMax, color, 0f, ImDrawFlags.None, thickness);
+        draw.AddRect(frontMin + offset, frontMax + offset, color, 0f, ImDrawFlags.None, thickness);
+        draw.AddLine(frontMin, frontMin + offset, color, thickness);
+        draw.AddLine(new Vector2(frontMax.X, frontMin.Y), new Vector2(frontMax.X, frontMin.Y) + offset, color, thickness);
+        draw.AddLine(frontMax, frontMax + offset, color, thickness);
+        draw.AddLine(new Vector2(frontMin.X, frontMax.Y), new Vector2(frontMin.X, frontMax.Y) + offset, color, thickness);
+    }
+
+    private static void DrawMaterial(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        Vector2 center = At(min, size, 0.5f, 0.52f);
+        draw.AddCircle(center, size.X * 0.34f, color, 20, thickness);
+        draw.AddCircleFilled(At(min, size, 0.38f, 0.36f), size.X * 0.08f, color);
+    }
+
+    private static void DrawStack(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.2f;
+        for (int i = 0; i < 3; i++)
+        {
+            float y = 0.18f + (i * 0.20f);
+            draw.AddRect(
+                At(min, size, 0.16f, y),
+                At(min, size, 0.78f, y + 0.13f),
+                color,
+                1f,
+                ImDrawFlags.None,
+                thickness);
+        }
+    }
+
+    private static void DrawMountain(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        const float thickness = 1.3f;
+        Vector2[] points =
+        [
+            At(min, size, 0.06f, 0.84f),
+            At(min, size, 0.34f, 0.28f),
+            At(min, size, 0.50f, 0.54f),
+            At(min, size, 0.66f, 0.36f),
+            At(min, size, 0.94f, 0.84f),
+        ];
+        draw.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, thickness);
+        draw.AddLine(At(min, size, 0.06f, 0.84f), At(min, size, 0.94f, 0.84f), color, thickness);
+    }
+
+    private static void DrawCrate(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        DrawCube(draw, min, size, color);
+        draw.AddLine(At(min, size, 0.22f, 0.50f), At(min, size, 0.50f, 0.78f), color, 1f);
+        draw.AddLine(At(min, size, 0.50f, 0.50f), At(min, size, 0.22f, 0.78f), color, 1f);
+    }
+
+    private static void DrawDots(ImDrawListPtr draw, Vector2 min, Vector2 size, uint color)
+    {
+        draw.AddCircleFilled(At(min, size, 0.22f, 0.5f), size.X * 0.08f, color);
+        draw.AddCircleFilled(At(min, size, 0.50f, 0.5f), size.X * 0.08f, color);
+        draw.AddCircleFilled(At(min, size, 0.78f, 0.5f), size.X * 0.08f, color);
+    }
+
     private static Vector2 At(Vector2 min, Vector2 size, float x, float y) =>
         new(min.X + (x * size.X), min.Y + (y * size.Y));
+
+    [DllImport("cimgui", EntryPoint = "igBeginTabItem", CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool IgBeginTabItem(IntPtr label, IntPtr pOpen, ImGuiTabItemFlags flags);
 }

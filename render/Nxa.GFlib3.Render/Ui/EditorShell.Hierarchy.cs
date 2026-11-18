@@ -58,6 +58,8 @@ public sealed partial class EditorShell
                 {
                     Select(new EditorSelection(EditorSelectionKind.RoomMesh, i));
                 }
+
+                DrawCopyMenu(mesh.Name);
             }
 
             ImGui.TreePop();
@@ -94,6 +96,8 @@ public sealed partial class EditorShell
                     Select(new EditorSelection(EditorSelectionKind.PlacedGroup, groupIndex));
                 }
 
+                DrawCopyMenu(name);
+
                 if (open)
                 {
                     foreach (int index in group.Indices)
@@ -104,6 +108,8 @@ public sealed partial class EditorShell
                         {
                             Select(new EditorSelection(EditorSelectionKind.PlacedMesh, index));
                         }
+
+                        DrawCopyMenu($"{name} #{index}");
                     }
 
                     ImGui.TreePop();
@@ -144,6 +150,8 @@ public sealed partial class EditorShell
                     Select(new EditorSelection(EditorSelectionKind.PlantModel, modelIndex));
                 }
 
+                DrawCopyMenu(plant.Name);
+
                 if (open)
                 {
                     foreach (int index in instances)
@@ -154,6 +162,8 @@ public sealed partial class EditorShell
                         {
                             Select(new EditorSelection(EditorSelectionKind.PlantInstance, index));
                         }
+
+                        DrawCopyMenu(PlantInstanceCopyName(index));
                     }
 
                     ImGui.TreePop();
@@ -181,7 +191,32 @@ public sealed partial class EditorShell
             Select(new EditorSelection(EditorSelectionKind.Terrain, 0));
         }
 
+        DrawCopyMenu(_text.T("hierarchy.terrain"));
         return true;
+    }
+
+    private void DrawCopyMenu(string value)
+    {
+        if (!ImGui.BeginPopupContextItem())
+        {
+            return;
+        }
+
+        if (ImGui.MenuItem(_text.T("hierarchy.copyName")))
+        {
+            ImGui.SetClipboardText(value);
+        }
+
+        ImGui.EndPopup();
+    }
+
+    private string PlantInstanceCopyName(int index)
+    {
+        PlantInstance instance = _scene.Instances[index];
+        string model = (uint)instance.ModelIndex < (uint)_scene.Plants.Count
+            ? _scene.Plants[instance.ModelIndex].Name
+            : _text.T("common.none");
+        return $"{model} #{index}";
     }
 
     private string PlacedPosition(int index)

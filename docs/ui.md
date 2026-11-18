@@ -18,8 +18,29 @@ Phase 2a adds the read-only selection and inspection layer:
 - Frame selection: `F`, the toolbar button, and the Inspector button frame the
   selected object; with no selection they frame the scene.
 
-The Project panel still uses the Phase 1 Area/Model selectors. The asset
-browser, console toolbar, and tab/section icons belong to Phase 2b.
+The Project panel uses `Info` and `Assets` tabs. The asset browser, console
+toolbar, and tab/section icons belong to Phase 2b.
+
+## Phase 2b scope
+
+Phase 2b adds the workspace tools on top of the read-only viewer:
+
+- `Project > Assets` lists every discovered terrain and model pack with name,
+  kind, file size, entry count, and counterpart. The kind filter covers base
+  areas, sub-areas, area models, sub-area models, auxiliary packs, and other
+  packs. Search matches either side of a pair.
+- Header metadata is read lazily through `GfpakHeader` the first time an asset
+  row is shown, then cached. Read failures stay in the row and do not create
+  scene warnings.
+- Double-clicking a paired row loads the area/model pair. The current area and
+  model rows stay highlighted. Auxiliary and unpaired rows are not loadable.
+- `Project > Info` keeps the scene statistics and terrain UV control. The quick
+  Area/Model selectors live at the top of the Assets tab.
+- The Console tab has a toolbar with text filtering, info/warning/error
+  toggles, session clear, copy-visible, and auto-scroll. Validation remains a
+  warning summary.
+- Bottom tabs, Inspector component headers, and asset rows use vector icons.
+  Hierarchy rows expose `Copy name` in their context menu.
 
 ## Layout
 
@@ -78,6 +99,44 @@ through `Matrix4x4.Decompose`, `.trins` rows use `atan2(Row2.X, Row0.X)` with
 the independent XZ/Y scale. The Inspector shows the decomposed position, yaw in
 degrees, and scale; world bounds transform the eight local corners.
 
+## Project assets
+
+`SceneCatalog` classifies packs by folder and name. Terrain and model packs pair
+by the same name; a sub-area terrain pack without a same-named model falls back
+to its base area model. Auxiliary model packs (`resident_bg_parts_model`) and
+unclassified packs such as `animation` and `collision` remain visible in
+`Assets` but are not loadable.
+
+The asset table uses `GfpakHeader` for the entry count. The header read happens
+on first display per file and the result, including a read error, is cached for
+the process lifetime. The table is not virtualized; the dump has roughly one
+hundred asset rows. Column widths are fixed and the name column plus header row
+stay frozen, so narrow panels get a horizontal scrollbar instead of truncating
+the pair column.
+
+## Console
+
+`ConsoleLog` classifies messages by the `error:` and `warning:` prefixes; all
+other messages are info. The toolbar filter is case-insensitive and applies to
+the message text after the level toggles. Session clear hides messages that
+already existed at the time of the click; the next scene reload starts clear.
+Copy-visible writes the currently displayed messages to the clipboard.
+
+## Icons
+
+Toolbar icons are drawn as vector shapes through `ImDrawList`
+(`Ui/EditorIcons.cs`). Phase 1 provides select, move, rotate, scale, and frame.
+This avoids an icon-font dependency and keeps the glyphs crisp at 16px.
+
+The transform tools remain disabled until Stage 5. They are rendered with the
+Unity-style active/disabled treatment so the toolbar layout is final.
+
+Bottom tabs, Inspector component headers, and asset kinds reuse the same vector
+set. Tab and collapsing-header labels reserve four leading spaces; the icon is
+drawn over the item rect after ImGui lays the label out. Docked window titles
+stay text-only because they are also the stable docking identifiers. DPI
+scaling is deferred; the current metrics assume a 100% display scale.
+
 ## Palette
 
 Approximate Unity 2019 dark-skin values. The reference is a screenshot, not a
@@ -126,20 +185,6 @@ scrollbars.
 
 The Scene panel no longer overlays a control hint; `Help > Controls` opens the
 navigation list as a modal dialog.
-
-## Icons
-
-Toolbar icons are drawn as vector shapes through `ImDrawList`
-(`Ui/EditorIcons.cs`). Phase 1 provides select, move, rotate, scale, and frame.
-This avoids an icon-font dependency and keeps the glyphs crisp at 16px.
-
-The transform tools remain disabled until Stage 5. They are rendered with the
-Unity-style active/disabled treatment so the toolbar layout is final.
-
-ImGui tab labels cannot host arbitrary draw-list icons. Bottom tab icons and
-inspector section icons belong to Phase 2b; the planned approach reserves
-leading label space and draws the icon over the tab item rect. DPI scaling is
-deferred; the current metrics assume a 100% display scale.
 
 ## Docking implementation
 

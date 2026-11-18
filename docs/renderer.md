@@ -1,4 +1,4 @@
-﻿# Field viewer (`Nxa.GFlib3.Render`)
+# Field viewer (`Nxa.GFlib3.Render`)
 
 Status: Stage 4b. The project loads one field area, renders the heightmap
 terrain, one room model with BNTX base-color textures, scene-table objects
@@ -104,13 +104,16 @@ Folder hashes include the trailing slash.
 
 ## Runtime area switching
 
-At startup `SceneCatalog` lists `*.gfpak` names from
-`RomFS/bin/archive/field/terrain` and `RomFS/bin/archive/field/model/pack`, sorted
-ordinal-ignore-case. If enumeration fails, the catalog keeps whatever was found
-and the reason is reported as a `warning:` line in the Console. The Project panel
-exposes one combo per list and a Load button. Choosing an area also selects the
-model pack with the same name when one exists; both selections remain independent
-afterwards.
+At startup `SceneCatalog` classifies `*.gfpak` files from
+`RomFS/bin/archive/field/terrain` and `RomFS/bin/archive/field/model/pack`.
+Terrain and model packs pair by name; a sub-area terrain pack without a
+same-named model falls back to its base area model. If enumeration fails, the
+catalog keeps whatever was found and the reason is reported as a `warning:`
+line in the Console. `Project > Assets` lists the packs with a text filter, kind
+filter, size, lazy `GfpakHeader` entry count, and counterpart; double-clicking a
+paired row loads that area and model. The Area/Model combos and Load button stay
+at the top of the Assets tab. Choosing an area also selects the model pack with
+the same name when one exists; both selections remain independent afterwards.
 
 Load runs synchronously on the render thread from the UI request queue. It builds
 a complete `FieldScene`, then creates a new `SceneRenderer`, disposes the previous
@@ -147,9 +150,10 @@ the test machine, dominated by scene objects and their textures).
 The host window opens maximized; 1600×900 is the restore size. It contains a menu
 bar, an icon toolbar, and a dockspace. Panels: Hierarchy, Scene, Inspector,
 Project, and Console (Console hosts Validation and History tabs). A 27.5px status
-bar (125% UI scale) runs below the dock area. The Project panel contains the Area
-pack and Model pack selectors with a Load button above the current model, counts,
-and terrain UV slider.
+bar (125% UI scale) runs below the dock area. The Project panel has `Info` and
+`Assets` tabs: Info shows the current area/model, dump root, scene counts, and
+terrain UV slider; Assets hosts the pack selectors and the asset table with a
+console-style filter toolbar.
 
 The default Unity-style layout is built programmatically: left 20% (Hierarchy
 45% / Project 55%), center 58% (Scene 68% / Console 32%), right 22% Inspector.

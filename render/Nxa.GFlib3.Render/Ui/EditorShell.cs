@@ -29,6 +29,16 @@ public sealed partial class EditorShell
     private int _areaIndex;
     private int _modelIndex;
     private SceneSelection? _pendingLoad;
+    private readonly Dictionary<string, AssetHeaderInfo> _assetHeaders = new(StringComparer.OrdinalIgnoreCase);
+    private string _assetFilter = string.Empty;
+    private int _assetKindFilter;
+    private string _consoleFilter = string.Empty;
+    private bool _consoleShowInfo = true;
+    private bool _consoleShowWarnings = true;
+    private bool _consoleShowErrors = true;
+    private bool _consoleAutoScroll = true;
+    private int _consoleClearedAt;
+    private int _consoleLastCount;
 
     public EditorShell(Localizer text, FieldScene scene, SceneCatalog catalog, bool buildDefaultLayout)
     {
@@ -78,6 +88,8 @@ public sealed partial class EditorShell
     {
         _scene = scene;
         _selection = EditorSelection.None;
+        _consoleClearedAt = 0;
+        _consoleLastCount = 0;
         BuildSceneIndexes();
         SyncPackSelection();
     }
@@ -255,121 +267,6 @@ public sealed partial class EditorShell
         ImGui.DockSpace(_dockspaceId, size, ImGuiDockNodeFlags.None);
     }
 
-    private void DrawProject()
-    {
-        if (!ImGui.Begin(EditorLayout.ProjectWindow))
-        {
-            ImGui.End();
-            return;
-        }
-
-        DrawPackSelectors();
-        ImGui.Separator();
-        DrawKeyValue(_text.T("project.model"), _scene.RoomModelName);
-        DrawKeyValue(_text.T("project.dump"), _scene.DumpRoot);
-        ImGui.Separator();
-        DrawKeyValue(_text.T("project.meshes"), _scene.RoomMeshes.Count.ToString(CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.vertices"), _scene.VertexCount.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.indices"), _scene.IndexCount.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.instances"), _scene.Instances.Count.ToString("N0", CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.textures"), _scene.Textures.Count.ToString(CultureInfo.InvariantCulture));
-        DrawKeyValue(_text.T("project.warnings"), WarningCount().ToString(CultureInfo.InvariantCulture));
-
-        if (_scene.Terrain is not null)
-        {
-            ImGui.Separator();
-            float tiling = _scene.TerrainTileScale;
-            if (ImGui.SliderFloat(_text.T("project.terrainUv"), ref tiling, 0.25f, 256f, "x%.2f"))
-            {
-                _scene.TerrainTileScale = tiling;
-            }
-        }
-
-        ImGui.End();
-    }
-
-    private void DrawPackSelectors()
-    {
-        bool hasAreas = _catalog.Areas.Count > 0;
-        bool hasModels = _catalog.ModelPacks.Count > 0;
-
-        ImGui.TextDisabled(_text.T("project.area"));
-        ImGui.BeginDisabled(!hasAreas);
-        ImGui.SetNextItemWidth(-1f);
-        if (hasAreas && ImGui.BeginCombo("##areaPack", _catalog.Areas[_areaIndex]))
-        {
-            for (int i = 0; i < _catalog.Areas.Count; i++)
-            {
-                string area = _catalog.Areas[i];
-                bool selected = i == _areaIndex;
-                if (ImGui.Selectable(area, selected) && i != _areaIndex)
-                {
-                    _areaIndex = i;
-                    SelectMatchingModel(area);
-                }
-
-                if (selected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
-            }
-
-            ImGui.EndCombo();
-        }
-
-        ImGui.EndDisabled();
-
-        ImGui.TextDisabled(_text.T("project.modelPack"));
-        ImGui.BeginDisabled(!hasModels);
-        ImGui.SetNextItemWidth(-1f);
-        if (hasModels && ImGui.BeginCombo("##modelPack", _catalog.ModelPacks[_modelIndex]))
-        {
-            for (int i = 0; i < _catalog.ModelPacks.Count; i++)
-            {
-                bool selected = i == _modelIndex;
-                if (ImGui.Selectable(_catalog.ModelPacks[i], selected))
-                {
-                    _modelIndex = i;
-                }
-
-                if (selected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
-            }
-
-            ImGui.EndCombo();
-        }
-
-        ImGui.EndDisabled();
-
-        if (!hasAreas || !hasModels)
-        {
-            ImGui.TextDisabled(_text.T("project.noPacks"));
-            return;
-        }
-
-        if (ImGui.Button(_text.T("project.load"), new Vector2(-1f, 0f)))
-        {
-            RequestLoad(_catalog.Areas[_areaIndex], _catalog.ModelPacks[_modelIndex]);
-        }
-    }
-
-    private void SelectMatchingModel(string area)
-    {
-        int match = _catalog.IndexOfModel(area);
-        if (match >= 0)
-        {
-            _modelIndex = match;
-        }
-    }
-
-    private void SyncPackSelection()
-    {
-        _areaIndex = Math.Max(_catalog.IndexOfArea(_scene.AreaName), 0);
-        _modelIndex = Math.Max(_catalog.IndexOfModel(_scene.ModelPackName), 0);
-    }
-
     private void DrawConsolePanels()
     {
         if (!ImGui.Begin(EditorLayout.ConsoleWindow, ImGuiWindowFlags.NoCollapse))
@@ -380,19 +277,28 @@ public sealed partial class EditorShell
 
         if (ImGui.BeginTabBar("##bottomTabs"))
         {
-            if (ImGui.BeginTabItem(_text.T("panel.console")))
+            if (EditorIcons.BeginTabItem(
+                    EditorIcon.PanelConsole,
+                    _text.T("panel.console"),
+                    "consoleTab"))
             {
                 DrawConsole();
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem(_text.T("panel.validation")))
+            if (EditorIcons.BeginTabItem(
+                    EditorIcon.PanelValidation,
+                    _text.T("panel.validation"),
+                    "validationTab"))
             {
                 DrawValidation();
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem(_text.T("panel.history")))
+            if (EditorIcons.BeginTabItem(
+                    EditorIcon.PanelHistory,
+                    _text.T("panel.history"),
+                    "historyTab"))
             {
                 ImGui.TextDisabled(_text.T("history.empty"));
                 ImGui.EndTabItem();
@@ -406,21 +312,89 @@ public sealed partial class EditorShell
 
     private void DrawConsole()
     {
-        if (_scene.Messages.Count == 0)
+        int messageCount = _scene.Messages.Count;
+        bool newMessages = messageCount != _consoleLastCount;
+        _consoleLastCount = messageCount;
+        _consoleClearedAt = Math.Min(_consoleClearedAt, messageCount);
+
+        bool copyRequested = DrawConsoleToolbar();
+        var visible = new List<(string Message, ConsoleLevel Level)>();
+        for (int i = _consoleClearedAt; i < messageCount; i++)
         {
-            ImGui.TextDisabled(_text.T("console.empty"));
-            return;
+            string message = _scene.Messages[i];
+            ConsoleLevel level = ConsoleLog.Classify(message);
+            if (ConsoleLog.Matches(
+                    level,
+                    message,
+                    _consoleFilter,
+                    _consoleShowInfo,
+                    _consoleShowWarnings,
+                    _consoleShowErrors))
+            {
+                visible.Add((message, level));
+            }
         }
 
-        foreach (string message in _scene.Messages)
+        if (copyRequested)
         {
-            Vector4 color = message.StartsWith("warning:", StringComparison.OrdinalIgnoreCase)
-                ? EditorTheme.Warning
-                : message.StartsWith("error:", StringComparison.OrdinalIgnoreCase)
-                    ? EditorTheme.Error
-                    : EditorTheme.TextPrimary;
-            ImGui.TextColored(color, message);
+            IEnumerable<string> lines = visible.Select(item => item.Message);
+            ImGui.SetClipboardText(string.Join(Environment.NewLine, lines));
         }
+
+        ImGui.BeginChild("##consoleLog", new Vector2(0f, 0f));
+        if (visible.Count == 0)
+        {
+            ImGui.TextDisabled(_text.T(messageCount == 0 ? "console.empty" : "console.noMatch"));
+        }
+        else
+        {
+            foreach ((string message, ConsoleLevel level) in visible)
+            {
+                Vector4 color = level switch
+                {
+                    ConsoleLevel.Warning => EditorTheme.Warning,
+                    ConsoleLevel.Error => EditorTheme.Error,
+                    _ => EditorTheme.TextPrimary,
+                };
+                ImGui.TextColored(color, message);
+            }
+
+            if (_consoleAutoScroll && newMessages)
+            {
+                ImGui.SetScrollHereY(1f);
+            }
+        }
+
+        ImGui.EndChild();
+    }
+
+    private bool DrawConsoleToolbar()
+    {
+        ImGui.SetNextItemWidth(170f * EditorTheme.UiScale);
+        ImGui.InputTextWithHint(
+            "##consoleFilter",
+            _text.T("console.filter"),
+            ref _consoleFilter,
+            128);
+        ImGui.SameLine();
+        ImGui.Checkbox(_text.T("console.info"), ref _consoleShowInfo);
+        ImGui.SameLine();
+        ImGui.Checkbox(_text.T("console.warning"), ref _consoleShowWarnings);
+        ImGui.SameLine();
+        ImGui.Checkbox(_text.T("console.error"), ref _consoleShowErrors);
+        ImGui.SameLine();
+
+        if (ImGui.Button(_text.T("console.clear")))
+        {
+            _consoleClearedAt = _scene.Messages.Count;
+        }
+
+        ImGui.SameLine();
+        bool copyRequested = ImGui.Button(_text.T("console.copy"));
+        ImGui.SameLine();
+        ImGui.Checkbox(_text.T("console.autoScroll"), ref _consoleAutoScroll);
+        ImGui.Separator();
+        return copyRequested;
     }
 
     private void DrawValidation()
