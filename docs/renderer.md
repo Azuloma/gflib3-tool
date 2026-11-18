@@ -134,11 +134,15 @@ the test machine, dominated by scene objects and their textures).
   one GPU buffer per geometry and draw with their SRT matrix.
 - Room meshes, placed meshes, terrain, and vegetation are drawn into an
   off-screen RGBA8 framebuffer with a 24-bit depth buffer; the Scene panel
-  displays that texture.
+  displays that texture. The far plane is recomputed each frame from the
+  current scene bounds, so edited transforms do not clip.
 - Vegetation uses a model-matrix draw per instance. Instanced attributes were
   initially planned, but produced incorrectly transformed geometry in the
   current GL path; per-instance model matrices are correct and fast enough for
-  the observed counts (60 in area 00, 2,204 in area 02).
+  the observed counts (60 in area 00, 2,204 in area 02). The renderer keeps the
+  per-model instance indices and reads the current matrix from the scene every
+  frame, so editor transforms appear without rebuilding GPU buffers. Adding or
+  removing instances will still require a renderer rebuild.
 - Untextured water materials use a blue fallback tint. Vista shells (`*_vista*`)
   are not placed because the heightmap terrain already covers them.
 - The free-fly camera is Y-up: right mouse look, WASD, Q/E, Shift sprint, F
@@ -202,6 +206,8 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
 - Only one room TRMDL is loaded. Selecting a room sub-pack such as
   `ha_area00_s07` shows that interior at the origin.
 - No skinning, animations, collision, or LOD switching.
-- No editor operations; Stage 5 adds selection, transforms, and export.
+- Stage 5 Step 1 edits existing vegetation transforms in memory through the
+  viewport gizmo. Add/duplicate, save, and RomFS export are not implemented yet;
+  reloading an area discards the edit session.
 - BNTX textures are decoded to CPU RGBA8 once; no streaming or texture cache
   eviction.

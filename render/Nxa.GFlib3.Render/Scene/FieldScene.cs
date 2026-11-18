@@ -193,4 +193,10 @@ public sealed class PlantModel
     public List<SceneMesh> Meshes { get; } = [];
 }
 
-public sealed record PlantInstance(int ModelIndex, Matrix4x4RowMajor Matrix);
+public sealed class PlantInstance(int modelIndex, Matrix4x4RowMajor matrix)
+{
+    public int ModelIndex { get; } = modelIndex;
+
+    /// <summary>Editable row-major transform; the renderer reads it every frame.</summary>
+    public Matrix4x4RowMajor Matrix { get; set; } = matrix;
+}

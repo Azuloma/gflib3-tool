@@ -6,6 +6,7 @@ using System.Numerics;
 using ImGuiNET;
 using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Render.Camera;
+using Nxa.GFlib3.Render.Editing;
 using Nxa.GFlib3.Render.Localization;
 using Nxa.GFlib3.Render.Scene;
 
@@ -18,6 +19,7 @@ public sealed partial class EditorShell
     private readonly SceneCatalog _catalog;
 
     private FieldScene _scene;
+    private PlantEditSession _editSession;
     private bool _showAbout;
     private bool _showControls;
     private bool _layoutPending;
@@ -45,6 +47,7 @@ public sealed partial class EditorShell
         _text = text;
         _scene = scene;
         _catalog = catalog;
+        _editSession = new PlantEditSession(scene);
         _layoutPending = buildDefaultLayout;
         BuildSceneIndexes();
         SyncPackSelection();
@@ -77,6 +80,8 @@ public sealed partial class EditorShell
         return requested;
     }
 
+    public void RequestFrameSelection() => FrameRequested = true;
+
     public void RequestLoad(string area, string modelPack)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(area);
@@ -87,6 +92,9 @@ public sealed partial class EditorShell
     public void SetScene(FieldScene scene)
     {
         _scene = scene;
+        _editSession = new PlantEditSession(scene);
+        _drag = null;
+        _hoveredAxis = GizmoAxis.None;
         _selection = EditorSelection.None;
         _consoleClearedAt = 0;
         _consoleLastCount = 0;
@@ -96,6 +104,8 @@ public sealed partial class EditorShell
 
     public void Draw(UiFrameContext frame)
     {
+        UpdateEditorShortcuts();
+
         ImGuiViewportPtr viewport = ImGui.GetMainViewport();
         ImGui.SetNextWindowPos(viewport.WorkPos);
         ImGui.SetNextWindowSize(viewport.WorkSize);
@@ -157,10 +167,16 @@ public sealed partial class EditorShell
 
         if (ImGui.BeginMenu(_text.T("menu.edit")))
         {
-            ImGui.BeginDisabled();
-            ImGui.MenuItem(_text.T("menu.edit.undo"), "Ctrl+Z");
-            ImGui.MenuItem(_text.T("menu.edit.redo"), "Ctrl+Y");
-            ImGui.EndDisabled();
+            if (ImGui.MenuItem(_text.T("menu.edit.undo"), "Ctrl+Z", false, _editSession.CanUndo))
+            {
+                Undo();
+            }
+
+            if (ImGui.MenuItem(_text.T("menu.edit.redo"), "Ctrl+Y", false, _editSession.CanRedo))
+            {
+                Redo();
+            }
+
             ImGui.EndMenu();
         }
 
@@ -235,13 +251,45 @@ public sealed partial class EditorShell
 
         float buttonY = start.Y + MathF.Max(0f, (EditorTheme.ToolbarHeight - ImGui.GetFrameHeight()) * 0.5f);
         ImGui.SetCursorScreenPos(new Vector2(start.X + (6f * EditorTheme.UiScale), buttonY));
-        EditorIcons.ToolButton(EditorIcon.Select, _text.T("toolbar.select"), active: true, enabled: false);
+        if (EditorIcons.ToolButton(
+                EditorIcon.Select,
+                _text.T("toolbar.select"),
+                active: _tool == GizmoMode.Select,
+                enabled: true))
+        {
+            SetTool(GizmoMode.Select);
+        }
+
         ImGui.SameLine();
-        EditorIcons.ToolButton(EditorIcon.Move, _text.T("toolbar.move"), active: false, enabled: false);
+        if (EditorIcons.ToolButton(
+                EditorIcon.Move,
+                _text.T("toolbar.move"),
+                active: _tool == GizmoMode.Move,
+                enabled: true))
+        {
+            SetTool(GizmoMode.Move);
+        }
+
         ImGui.SameLine();
-        EditorIcons.ToolButton(EditorIcon.Rotate, _text.T("toolbar.rotate"), active: false, enabled: false);
+        if (EditorIcons.ToolButton(
+                EditorIcon.Rotate,
+                _text.T("toolbar.rotate"),
+                active: _tool == GizmoMode.Rotate,
+                enabled: true))
+        {
+            SetTool(GizmoMode.Rotate);
+        }
+
         ImGui.SameLine();
-        EditorIcons.ToolButton(EditorIcon.Scale, _text.T("toolbar.scale"), active: false, enabled: false);
+        if (EditorIcons.ToolButton(
+                EditorIcon.Scale,
+                _text.T("toolbar.scale"),
+                active: _tool == GizmoMode.Scale,
+                enabled: true))
+        {
+            SetTool(GizmoMode.Scale);
+        }
+
         EditorIcons.ToolbarSeparator();
         if (EditorIcons.ToolButton(EditorIcon.Frame, _text.T("toolbar.frame"), active: false, enabled: true))
         {
@@ -300,7 +348,7 @@ public sealed partial class EditorShell
                     _text.T("panel.history"),
                     "historyTab"))
             {
-                ImGui.TextDisabled(_text.T("history.empty"));
+                DrawHistory();
                 ImGui.EndTabItem();
             }
 
@@ -439,7 +487,7 @@ public sealed partial class EditorShell
         x = AddStatusSeparator(draw, x, y);
         AddStatusPair(draw, x, y, _text.T("status.instances"), frame.Instances.ToString("N0", CultureInfo.InvariantCulture));
 
-        string mode = _text.T("toolbar.mode.viewer");
+        string mode = _text.T(ToolNameKey);
         float modeWidth = ImGui.CalcTextSize(mode).X;
         draw.AddText(
             new Vector2(position.X + size.X - modeWidth - 10f, y),
@@ -473,6 +521,11 @@ public sealed partial class EditorShell
         bool open = ImGui.Begin(EditorLayout.SceneWindow, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
         if (!open)
         {
+            if (_drag is not null)
+            {
+                CancelDrag();
+            }
+
             ImGui.End();
             ImGui.PopStyleVar();
             return;
@@ -485,7 +538,42 @@ public sealed partial class EditorShell
         ImGui.Image((nint)texture, available, new Vector2(0, 1), new Vector2(1, 0));
 
         bool hovered = ImGui.IsItemHovered();
-        if (hovered)
+        Vector2 imageMin = ImGui.GetItemRectMin();
+        var imageSize = new Vector2(width, height);
+        Vector2 localMouse = ImGui.GetIO().MousePos - imageMin;
+        float farPlane = SceneGeometry.RecommendedFarPlane(_scene, frame.Camera.Position);
+        Matrix4x4 viewProjection = frame.Camera.View
+            * FreeFlyCamera.Projection((float)width / height, farPlane);
+
+        if (Matrix4x4.Invert(viewProjection, out Matrix4x4 inverseViewProjection))
+        {
+            bool gizmoConsumed = UpdateGizmoInput(
+                frame.Camera,
+                viewProjection,
+                inverseViewProjection,
+                hovered,
+                localMouse,
+                imageSize);
+            if (!gizmoConsumed
+                && hovered
+                && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
+                && !ImGui.IsMouseDown(ImGuiMouseButton.Right)
+                && !ImGui.GetIO().WantTextInput
+                && ScenePicking.TryScreenRay(
+                    localMouse,
+                    imageSize,
+                    inverseViewProjection,
+                    out SceneRay ray))
+            {
+                Select(ScenePicking.TryPickPlant(_scene, ray, out int index)
+                    ? new EditorSelection(EditorSelectionKind.PlantInstance, index)
+                    : EditorSelection.None);
+            }
+
+            DrawSceneOverlay(frame.Camera, viewProjection, imageMin, imageSize, hovered, localMouse);
+        }
+
+        if (hovered && _drag is null)
         {
             HandleCameraInput(frame.Camera);
             if (ImGui.IsKeyPressed(ImGuiKey.F))

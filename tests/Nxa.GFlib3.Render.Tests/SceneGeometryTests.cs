@@ -67,6 +67,40 @@ public sealed class SceneGeometryTests
     }
 
     [Fact]
+    public void ComposeRoundTripsObservedTrinsMatrix()
+    {
+        var matrix = new Matrix4x4RowMajor(
+            new Vector4f(-0.38041f, 0f, -0.97888f, 0f),
+            new Vector4f(0f, 1.06524f, 0f, 0f),
+            new Vector4f(0.97888f, 0f, -0.38041f, 0f),
+            new Vector4f(445.1664f, 60.78404f, 650.67f, 1f));
+
+        Matrix4x4RowMajor composed = SceneGeometry.Compose(SceneGeometry.Decompose(matrix));
+
+        Assert.Equal(matrix.Row0.X, composed.Row0.X, 3);
+        Assert.Equal(matrix.Row0.Z, composed.Row0.Z, 3);
+        Assert.Equal(matrix.Row1.Y, composed.Row1.Y, 3);
+        Assert.Equal(matrix.Row2.X, composed.Row2.X, 3);
+        Assert.Equal(matrix.Row2.Z, composed.Row2.Z, 3);
+        Assert.Equal(matrix.Row3.X, composed.Row3.X, 3);
+        Assert.Equal(matrix.Row3.Y, composed.Row3.Y, 3);
+        Assert.Equal(matrix.Row3.Z, composed.Row3.Z, 3);
+    }
+
+    [Fact]
+    public void ComposeMapsPositiveXToNegativeZAtNinetyDegrees()
+    {
+        var transform = new SceneTransform(new Vector3(0f, 0f, 0f), 90f, Vector3.One);
+
+        Matrix4x4RowMajor matrix = SceneGeometry.Compose(transform);
+
+        Assert.Equal(0f, matrix.Row0.X, 3);
+        Assert.Equal(-1f, matrix.Row0.Z, 3);
+        Assert.Equal(1f, matrix.Row2.X, 3);
+        Assert.Equal(0f, matrix.Row2.Z, 3);
+    }
+
+    [Fact]
     public void TransformsBoundsWithTranslationAndYaw()
     {
         var bounds = new BoundingBox(new Vector3f(-1f, 0f, -1f), new Vector3f(1f, 2f, 1f));

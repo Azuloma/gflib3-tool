@@ -120,6 +120,17 @@ internal sealed class RenderApp : IDisposable
             !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
         _shell = new EditorShell(_text, _scene, _catalog, !hasSavedLayout);
+        _shell.SetTool(_options.StartTool);
+        if (_options.SelectInstance is int selectIndex && !_shell.SelectPlantInstance(selectIndex))
+        {
+            Console.Error.WriteLine(
+                $"warning: --select-instance {selectIndex} is outside the loaded instance range.");
+        }
+
+        if (_options.FrameSelection)
+        {
+            _shell.RequestFrameSelection();
+        }
 
         EditorTheme.Apply();
         FrameCamera();
@@ -323,6 +334,7 @@ internal sealed class RenderApp : IDisposable
     private void ReloadScene(SceneSelection request)
     {
         _status = _text.T("app.status.loading");
+        int discardedInstances = _shell?.DirtyInstanceCount ?? 0;
         try
         {
             FieldScene scene = FieldSceneLoader.Load(
@@ -345,6 +357,12 @@ internal sealed class RenderApp : IDisposable
             _renderer = renderer;
             _scene = scene;
             _shell!.SetScene(scene);
+            if (discardedInstances > 0)
+            {
+                scene.Messages.Add(
+                    $"warning: reload discarded {discardedInstances} edited instance(s).");
+            }
+
             FrameCamera();
             _status = $"{_text.T("app.status.loaded")}: {request.Area}";
             Console.WriteLine(

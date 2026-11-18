@@ -28,6 +28,10 @@ internal static class EditorTheme
     public static readonly Vector4 ToolbarBackground = Hex(0x3C3C3C);
     public static readonly Vector4 StatusBackground = Hex(0x2D2D2D);
     public static readonly Vector4 Border = Hex(0x232323);
+    public static readonly Vector4 AxisX = Hex(0xD9534F);
+    public static readonly Vector4 AxisY = Hex(0x5CB85C);
+    public static readonly Vector4 AxisZ = Hex(0x4A90D9);
+    public static readonly Vector4 AxisXz = Hex(0xD9A441);
 
     public static void Apply()
     {

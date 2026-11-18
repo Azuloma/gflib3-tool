@@ -14,7 +14,8 @@ Phase 2a adds the read-only selection and inspection layer:
 - Hierarchy tree grouped by object name, with a text filter and expandable
   placed-object and plant-instance lists.
 - Component Inspector with Transform, Geometry, Material, Instances, and
-  Terrain sections. Fields remain read-only until Stage 5.
+  Terrain sections. Fields remain read-only; Stage 5 Step 1 edits through the
+  viewport gizmo.
 - Frame selection: `F`, the toolbar button, and the Inspector button frame the
   selected object; with no selection they frame the scene.
 
@@ -99,6 +100,12 @@ through `Matrix4x4.Decompose`, `.trins` rows use `atan2(Row2.X, Row0.X)` with
 the independent XZ/Y scale. The Inspector shows the decomposed position, yaw in
 degrees, and scale; world bounds transform the eight local corners.
 
+Stage 5 Step 1 adds viewport picking and transform gizmos. Left click selects a
+vegetation instance by ray/AABB; selecting empty space clears the selection.
+The toolbar enables Select/Move/Rotate/Scale (`1`-`4`), drawing an ImGui overlay
+gizmo over the Scene image. `Ctrl+Z`/`Ctrl+Y` drive the session history, and the
+History tab lists applied and redoable edits. Details are in `docs/editing.md`.
+
 ## Project assets
 
 `SceneCatalog` classifies packs by folder and name. Terrain and model packs pair
@@ -128,8 +135,9 @@ Toolbar icons are drawn as vector shapes through `ImDrawList`
 (`Ui/EditorIcons.cs`). Phase 1 provides select, move, rotate, scale, and frame.
 This avoids an icon-font dependency and keeps the glyphs crisp at 16px.
 
-The transform tools remain disabled until Stage 5. They are rendered with the
-Unity-style active/disabled treatment so the toolbar layout is final.
+The transform tools became active in Stage 5 Step 1 and share the toolbar's
+active/disabled treatment. They are rendered with the Unity-style active
+treatment so the toolbar layout stays final.
 
 Bottom tabs, Inspector component headers, and asset kinds reuse the same vector
 set. Tab and collapsing-header labels reserve four leading spaces; the icon is

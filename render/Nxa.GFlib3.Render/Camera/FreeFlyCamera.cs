@@ -12,6 +12,8 @@ public sealed class FreeFlyCamera
     private const float MaxPitch = 1.55f;
     private const float LookSensitivity = 0.0032f;
 
+    public const float FieldOfViewRadians = MathF.PI / 3f;
+
     public Vector3 Position { get; set; } = new(0, 10, 30);
 
     public float Yaw { get; set; } = MathF.PI;
@@ -34,7 +36,7 @@ public sealed class FreeFlyCamera
     public static Matrix4x4 Projection(float aspect, float farPlane)
     {
         return Matrix4x4.CreatePerspectiveFieldOfView(
-            MathF.PI / 3f,
+            FieldOfViewRadians,
             MathF.Max(aspect, 0.0001f),
             0.1f,
             farPlane);

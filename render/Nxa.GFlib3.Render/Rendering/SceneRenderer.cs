@@ -2,7 +2,6 @@
 // Copyright 2026 the NXAevora Projects
 
 using System.Numerics;
-using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Core.Formats.Bntx;
 using Nxa.GFlib3.Core.Formats.Trinity;
 using Nxa.GFlib3.Render.Camera;
@@ -252,11 +251,16 @@ internal sealed class SceneRenderer : IDisposable
 
         for (int model = 0; model < scene.Plants.Count; model++)
         {
-            List<Matrix4x4RowMajor> instances = scene.Instances
-                .Where(instance => instance.ModelIndex == model)
-                .Select(instance => instance.Matrix)
-                .ToList();
-            if (instances.Count == 0 || scene.Plants[model].Meshes.Count == 0)
+            var instanceIndices = new List<int>();
+            for (int i = 0; i < scene.Instances.Count; i++)
+            {
+                if (scene.Instances[i].ModelIndex == model)
+                {
+                    instanceIndices.Add(i);
+                }
+            }
+
+            if (instanceIndices.Count == 0 || scene.Plants[model].Meshes.Count == 0)
             {
                 continue;
             }
@@ -268,23 +272,12 @@ internal sealed class SceneRenderer : IDisposable
             }
 
             render.SceneMeshes = scene.Plants[model].Meshes;
-            render.Instances = instances.Select(SceneGeometry.ToMatrix).ToList();
+            render.InstanceIndices = instanceIndices;
             _plants.Add(render);
         }
-
-        BoundingBox bounds = scene.ComputeBounds();
-        Vector3 center = ToVector(bounds.Min) + (ToVector(bounds.Max) - ToVector(bounds.Min)) * 0.5f;
-        float radius = MathF.Max((ToVector(bounds.Max) - center).Length(), 1f);
-        FarPlane = MathF.Max(500f, radius * 8f);
-        Center = center;
-        Radius = radius;
     }
 
-    public float FarPlane { get; }
-
-    public Vector3 Center { get; }
-
-    public float Radius { get; }
+    public float FarPlane { get; private set; } = SceneGeometry.MinFarPlane;
 
     public int RenderTriangleCount { get; private set; }
 
@@ -292,6 +285,7 @@ internal sealed class SceneRenderer : IDisposable
 
     public void Render(FieldScene scene, FreeFlyCamera camera, int width, int height)
     {
+        FarPlane = SceneGeometry.RecommendedFarPlane(scene, camera.Position);
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
         _gl.Disable(EnableCap.CullFace);
@@ -338,8 +332,14 @@ internal sealed class SceneRenderer : IDisposable
             _shader.SetInt("uInstanced", 0);
             foreach (PlantRender plant in _plants)
             {
-                foreach (Matrix4x4 transform in plant.Instances)
+                foreach (int index in plant.InstanceIndices)
                 {
+                    if ((uint)index >= (uint)scene.Instances.Count)
+                    {
+                        continue;
+                    }
+
+                    Matrix4x4 transform = SceneGeometry.ToMatrix(scene.Instances[index].Matrix);
                     _shader.SetMatrix("uModel", transform);
                     for (int i = 0; i < plant.SceneMeshes.Count && i < plant.Meshes.Count; i++)
                     {
@@ -350,7 +350,7 @@ internal sealed class SceneRenderer : IDisposable
                     }
                 }
 
-                instances += plant.Instances.Count;
+                instances += plant.InstanceIndices.Count;
             }
         }
 
@@ -480,7 +480,6 @@ internal sealed class SceneRenderer : IDisposable
         _shader.SetVector3("uTint", material?.Tint ?? Vector3.One);
     }
 
-    private static Vector3 ToVector(Vector3f value) => new(value.X, value.Y, value.Z);
 
     private sealed record PlacedRender(SceneMesh Mesh, GlMesh Buffer);
 
@@ -490,7 +489,7 @@ internal sealed class SceneRenderer : IDisposable
 
         public List<SceneMesh> SceneMeshes { get; set; } = [];
 
-        public List<Matrix4x4> Instances { get; set; } = [];
+        public List<int> InstanceIndices { get; set; } = [];
     }
 }
 

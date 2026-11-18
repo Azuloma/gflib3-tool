@@ -142,6 +142,9 @@ static void PrintHelp()
           --screenshot-delay <s> Wait this many seconds before the screenshot
           --reload-area <name> Diagnostic: switch to this area after the first frame
           --reload-model <name> Model pack for --reload-area (default: matching pack)
+          --select-instance <n> Diagnostic: select this vegetation instance at startup
+          --tool <name>       Diagnostic: select, move, rotate, or scale at startup
+          --frame-selection   Diagnostic: frame the startup selection
           --no-plants         Hide vegetation
           --no-room           Hide room geometry
           --no-terrain        Hide the heightmap terrain
@@ -153,6 +156,8 @@ static void PrintHelp()
 
         Controls:
           RMB look, WASD move, Q/E down/up, Shift sprint, F frame
+          LMB select vegetation, 1-4 select/move/rotate/scale
+          Ctrl+Z undo, Ctrl+Y redo, Esc cancel drag
         """);
 }
 

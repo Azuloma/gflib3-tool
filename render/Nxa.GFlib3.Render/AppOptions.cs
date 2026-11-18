@@ -2,6 +2,7 @@
 // Copyright 2026 the NXAevora Projects
 
 using System.Globalization;
+using Nxa.GFlib3.Render.Editing;
 
 namespace Nxa.GFlib3.Render;
 
@@ -34,6 +35,15 @@ public sealed class AppOptions
 
     /// <summary>Diagnostic: model pack for <see cref="ReloadArea"/>; defaults to the matching pack.</summary>
     public string? ReloadModel { get; private set; }
+
+    /// <summary>Diagnostic: vegetation instance index selected at startup.</summary>
+    public int? SelectInstance { get; private set; }
+
+    /// <summary>Diagnostic: gizmo tool active at startup.</summary>
+    public GizmoMode StartTool { get; private set; } = GizmoMode.Select;
+
+    /// <summary>Diagnostic: frame the startup selection before the first screenshot.</summary>
+    public bool FrameSelection { get; private set; }
 
     public bool NoPlants { get; private set; }
 
@@ -135,6 +145,21 @@ public sealed class AppOptions
                 case "--reload-model" when i + 1 < args.Length:
                     options.ReloadModel = args[++i];
                     break;
+                case "--select-instance" when i + 1 < args.Length:
+                    if (!int.TryParse(args[++i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int selectIndex)
+                        || selectIndex < 0)
+                    {
+                        throw new ArgumentException("--select-instance requires a non-negative integer.");
+                    }
+
+                    options.SelectInstance = selectIndex;
+                    break;
+                case "--tool" when i + 1 < args.Length:
+                    options.StartTool = ParseTool(args[++i]);
+                    break;
+                case "--frame-selection":
+                    options.FrameSelection = true;
+                    break;
                 case "--screenshot" when i + 1 < args.Length:
                     options.ScreenshotPath = args[++i];
                     break;
@@ -188,6 +213,15 @@ public sealed class AppOptions
 
         return DumpRoot;
     }
+
+    private static GizmoMode ParseTool(string value) => value.ToLowerInvariant() switch
+    {
+        "select" => GizmoMode.Select,
+        "move" => GizmoMode.Move,
+        "rotate" => GizmoMode.Rotate,
+        "scale" => GizmoMode.Scale,
+        _ => throw new ArgumentException($"Unknown tool '{value}'; expected select, move, rotate, or scale."),
+    };
 }
 
 public sealed class ShowHelpException : Exception;
