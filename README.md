@@ -4,16 +4,16 @@
 
 # GFlib3 Tool
 
-Private reverse-engineering and viewing tools for **GFlib3**, Game Freak's
-in-house engine, built against a decrypted dump of *Pokemon Legends: Arceus*
-(base game plus update v1.1.1).
+Reverse-engineering and viewing tools for **GFlib3**, Game Freak's in-house
+engine, built against a decrypted dump of *Pokemon Legends: Arceus* (base game
+plus update v1.1.1).
 
 The long-term goal is a map editor for field areas. The current state is a
 read-only field viewer, a set of format libraries, and a CLI for inspection and
 extraction.
 
-> This is a private project. Do not publish, upload, or share ROM contents,
-> extracted assets, keys, or tool output.
+This repository contains tooling only. It does not include game data, extracted
+assets, or keys; running the tools requires your own decrypted dump.
 
 ## Status
 
