@@ -139,6 +139,30 @@ spot-checked on the area-00 tree at `(445.1664, 60.78404, 650.67)`, whose Y
 matches the heightmap sample and whose trunk base contacts the terrain in
 close-up; this does not independently establish yaw.
 
+## Writing TRINS
+
+Observed `.trins` files share one fixed FlatBuffer layout. Rebuilding that
+layout from parsed values reproduced all 275 sampled entries in `ha_area00`,
+`ha_area01`, `ha_area06`, and `ha_area11` byte-for-byte:
+
+| Offset | Contents |
+| --- | --- |
+| `0x00` | root table offset, `0x14` |
+| `0x04` | two bytes of padding |
+| `0x06` | root vtable: size 14, object 22, field offsets `4,8,12,0,16` |
+| `0x14` | root table: soffset 14, field0 string offset, version, count, field4 buffer offset |
+| `0x2A` | buffer vtable: size 6, object 8, field0 offset 4 |
+| `0x30` | buffer table: soffset 6, field0 vector offset 4 |
+| `0x38` | payload length, `count * 64` |
+| `0x3C` | instance matrices |
+| `0x3C + count * 64` | string length 17, `SrtInstanceBuffer`, zero padding to 4 bytes |
+
+The writer appends one 64-byte matrix, increments `count`, and preserves the
+version and type name. `reserved` is absent in every sampled file and must be
+zero; the writer rejects other layouts. The root string offset is
+`0x3C + count * 64`, and the file length is the string end rounded up to four
+bytes.
+
 File naming:
 
 ```text

@@ -55,6 +55,25 @@ public sealed class FieldScene
 
     public List<PlantInstance> Instances { get; } = [];
 
+    /// <summary>Source `.trins` files backing <see cref="Instances"/>.</summary>
+    public List<PlantInstanceFile> InstanceFiles { get; } = [];
+
+    /// <summary>Increments when the instance list changes; transforms do not bump it.</summary>
+    public int InstanceRevision { get; private set; }
+
+    public void NotifyInstancesChanged() => InstanceRevision = checked(InstanceRevision + 1);
+
+    public IEnumerable<PlantInstanceFile> GetInstanceFiles(int modelIndex)
+    {
+        foreach (PlantInstanceFile file in InstanceFiles)
+        {
+            if (file.ModelIndex == modelIndex)
+            {
+                yield return file;
+            }
+        }
+    }
+
     public List<string> Messages { get; } = [];
 
     public int VertexCount => RoomMeshes.Sum(mesh => mesh.Geometry.Vertices.Length)
@@ -193,10 +212,39 @@ public sealed class PlantModel
     public List<SceneMesh> Meshes { get; } = [];
 }
 
+/// <summary>One terrain `.trins` file and the appended instance count it owns.</summary>
+public sealed class PlantInstanceFile
+{
+    public required string LogicalPath { get; init; }
+
+    public required int ModelIndex { get; init; }
+
+    public required int OriginalCount { get; init; }
+
+    public int AddedCount { get; set; }
+
+    public int NextIndex => OriginalCount + AddedCount;
+
+    public string FileName
+    {
+        get
+        {
+            int slash = Math.Max(LogicalPath.LastIndexOf('/'), LogicalPath.LastIndexOf('\\'));
+            return slash >= 0 ? LogicalPath[(slash + 1)..] : LogicalPath;
+        }
+    }
+}
+
 public sealed class PlantInstance(int modelIndex, Matrix4x4RowMajor matrix)
 {
     public int ModelIndex { get; } = modelIndex;
 
     /// <summary>Editable row-major transform; the renderer reads it every frame.</summary>
     public Matrix4x4RowMajor Matrix { get; set; } = matrix;
+
+    /// <summary>Source file, or null for instances created without a backing `.trins`.</summary>
+    public PlantInstanceFile? SourceFile { get; init; }
+
+    /// <summary>Index inside <see cref="SourceFile"/>; -1 when there is no source.</summary>
+    public int SourceIndex { get; init; } = -1;
 }

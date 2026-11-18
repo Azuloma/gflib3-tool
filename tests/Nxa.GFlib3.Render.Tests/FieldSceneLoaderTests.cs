@@ -8,6 +8,45 @@ namespace Nxa.GFlib3.Render.Tests;
 public sealed class FieldSceneLoaderTests
 {
     [Fact]
+    public void VegetationInstancesKeepSourceFileProvenance()
+    {
+        string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");
+        if (string.IsNullOrWhiteSpace(dump))
+        {
+            return;
+        }
+
+        FieldScene scene = FieldSceneLoader.Load(dump, "ha_area00", "ha_area00", null);
+
+        Assert.Equal(25, scene.InstanceFiles.Count);
+        Assert.Equal(60, scene.Instances.Count);
+        Assert.Equal(
+            scene.Instances.Count,
+            scene.InstanceFiles.Sum(file => file.OriginalCount));
+        Assert.All(scene.InstanceFiles, file => Assert.Equal(0, file.AddedCount));
+
+        foreach (PlantInstance instance in scene.Instances)
+        {
+            Assert.NotNull(instance.SourceFile);
+            Assert.Contains(instance.SourceFile!, scene.InstanceFiles);
+            Assert.InRange(instance.SourceIndex, 0, instance.SourceFile!.OriginalCount - 1);
+            Assert.Equal(instance.ModelIndex, instance.SourceFile.ModelIndex);
+            Assert.StartsWith(
+                "bin/field/terrain/ha_area00/terrain/",
+                instance.SourceFile.LogicalPath,
+                StringComparison.Ordinal);
+            Assert.EndsWith(".trins", instance.SourceFile.LogicalPath, StringComparison.Ordinal);
+        }
+
+        for (int model = 0; model < scene.Plants.Count; model++)
+        {
+            int fileCount = scene.GetInstanceFiles(model).Count();
+            int instanceCount = scene.Instances.Count(instance => instance.ModelIndex == model);
+            Assert.True(fileCount > 0 || instanceCount == 0);
+        }
+    }
+
+    [Fact]
     public void KeepsSameNamedMaterialsFromDifferentFilesDistinct()
     {
         string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");

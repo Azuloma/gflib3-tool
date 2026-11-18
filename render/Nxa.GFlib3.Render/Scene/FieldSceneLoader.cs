@@ -923,9 +923,21 @@ public static class FieldSceneLoader
                 try
                 {
                     TrinsFile trins = TrinsFile.Parse(data);
-                    foreach (Matrix4x4RowMajor matrix in trins.Instances)
+                    var source = new PlantInstanceFile
                     {
-                        scene.Instances.Add(new PlantInstance(modelIndex, matrix));
+                        LogicalPath = pack.LogicalFolder + instancePath,
+                        ModelIndex = modelIndex,
+                        OriginalCount = checked((int)trins.Count),
+                    };
+                    scene.InstanceFiles.Add(source);
+
+                    for (int i = 0; i < trins.Instances.Count; i++)
+                    {
+                        scene.Instances.Add(new PlantInstance(modelIndex, trins.Instances[i])
+                        {
+                            SourceFile = source,
+                            SourceIndex = i,
+                        });
                     }
                 }
                 catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
