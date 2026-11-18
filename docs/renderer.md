@@ -141,8 +141,11 @@ the test machine, dominated by scene objects and their textures).
   current GL path; per-instance model matrices are correct and fast enough for
   the observed counts (60 in area 00, 2,204 in area 02). The renderer keeps the
   per-model instance indices and reads the current matrix from the scene every
-  frame, so editor transforms appear without rebuilding GPU buffers. Adding or
-  removing instances will still require a renderer rebuild.
+  frame, so editor transforms appear without rebuilding GPU buffers.
+  `FieldScene.InstanceRevision` triggers a rebuild of only those index lists, so
+  added and removed instances appear without a renderer reload. A `PlantPreview`
+  transform draws one model at a prospective placement without changing scene
+  counts.
 - Untextured water materials use a blue fallback tint. Vista shells (`*_vista*`)
   are not placed because the heightmap terrain already covers them.
 - The free-fly camera is Y-up: right mouse look, WASD, Q/E, Shift sprint, F

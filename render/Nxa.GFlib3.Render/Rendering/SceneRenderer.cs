@@ -2,6 +2,7 @@
 // Copyright 2026 the NXAevora Projects
 
 using System.Numerics;
+using Nxa.GFlib3.Core.FlatBuffers;
 using Nxa.GFlib3.Core.Formats.Bntx;
 using Nxa.GFlib3.Core.Formats.Trinity;
 using Nxa.GFlib3.Render.Camera;
@@ -9,6 +10,9 @@ using Nxa.GFlib3.Render.Scene;
 using Silk.NET.OpenGL;
 
 namespace Nxa.GFlib3.Render.Rendering;
+
+/// <summary>A vegetation model drawn at a prospective placement transform.</summary>
+public readonly record struct PlantPreview(int ModelIndex, Matrix4x4RowMajor Matrix);
 
 /// <summary>Draws room geometry and instanced vegetation into the Scene framebuffer.</summary>
 internal sealed class SceneRenderer : IDisposable
@@ -182,6 +186,7 @@ internal sealed class SceneRenderer : IDisposable
     private readonly List<PlacedRender> _placed = [];
     private readonly List<GlMesh> _placedBuffers = [];
     private readonly List<PlantRender> _plants = [];
+    private readonly Dictionary<int, PlantRender> _plantsByModel = [];
     private readonly GlMesh? _terrain;
     private readonly GlTexture _white;
     private readonly bool _showPlants;
@@ -189,6 +194,7 @@ internal sealed class SceneRenderer : IDisposable
     private readonly bool _showRoom;
     private readonly bool _showTerrain;
     private readonly bool _showScene;
+    private int _instanceRevision = -1;
     private bool _disposed;
 
     public SceneRenderer(
@@ -251,30 +257,24 @@ internal sealed class SceneRenderer : IDisposable
 
         for (int model = 0; model < scene.Plants.Count; model++)
         {
-            var instanceIndices = new List<int>();
-            for (int i = 0; i < scene.Instances.Count; i++)
-            {
-                if (scene.Instances[i].ModelIndex == model)
-                {
-                    instanceIndices.Add(i);
-                }
-            }
-
-            if (instanceIndices.Count == 0 || scene.Plants[model].Meshes.Count == 0)
+            if (scene.Plants[model].Meshes.Count == 0)
             {
                 continue;
             }
 
-            var render = new PlantRender();
+            var render = new PlantRender { ModelIndex = model };
             foreach (SceneMesh mesh in scene.Plants[model].Meshes)
             {
                 render.Meshes.Add(new GlMesh(gl, mesh.Geometry));
             }
 
             render.SceneMeshes = scene.Plants[model].Meshes;
-            render.InstanceIndices = instanceIndices;
             _plants.Add(render);
+            _plantsByModel.Add(model, render);
         }
+
+        RebuildPlantInstanceLists(scene);
+        _instanceRevision = scene.InstanceRevision;
     }
 
     public float FarPlane { get; private set; } = SceneGeometry.MinFarPlane;
@@ -283,8 +283,12 @@ internal sealed class SceneRenderer : IDisposable
 
     public int RenderInstanceCount { get; private set; }
 
+    /// <summary>Optional vegetation preview drawn at a prospective transform.</summary>
+    public PlantPreview? Preview { get; set; }
+
     public void Render(FieldScene scene, FreeFlyCamera camera, int width, int height)
     {
+        EnsurePlantInstances(scene);
         FarPlane = SceneGeometry.RecommendedFarPlane(scene, camera.Position);
         _gl.Enable(EnableCap.DepthTest);
         _gl.DepthFunc(DepthFunction.Lequal);
@@ -352,6 +356,19 @@ internal sealed class SceneRenderer : IDisposable
 
                 instances += plant.InstanceIndices.Count;
             }
+
+            if (Preview is PlantPreview preview
+                && _plantsByModel.TryGetValue(preview.ModelIndex, out PlantRender? previewPlant))
+            {
+                _shader.SetInt("uInstanced", 0);
+                _shader.SetMatrix("uModel", SceneGeometry.ToMatrix(preview.Matrix));
+                for (int i = 0; i < previewPlant.SceneMeshes.Count && i < previewPlant.Meshes.Count; i++)
+                {
+                    SceneMesh mesh = previewPlant.SceneMeshes[i];
+                    BindMaterial(scene, mesh.MaterialIndex);
+                    previewPlant.Meshes[i].Draw(mesh.PartIndexStart, mesh.PartIndexCount);
+                }
+            }
         }
 
         if (_showTerrain && _terrain is not null)
@@ -409,6 +426,33 @@ internal sealed class SceneRenderer : IDisposable
         _gl.UseProgram(0);
         RenderTriangleCount = triangles;
         RenderInstanceCount = instances;
+    }
+
+    private void EnsurePlantInstances(FieldScene scene)
+    {
+        if (scene.InstanceRevision == _instanceRevision)
+        {
+            return;
+        }
+
+        RebuildPlantInstanceLists(scene);
+        _instanceRevision = scene.InstanceRevision;
+    }
+
+    private void RebuildPlantInstanceLists(FieldScene scene)
+    {
+        foreach (PlantRender plant in _plants)
+        {
+            plant.InstanceIndices.Clear();
+        }
+
+        for (int i = 0; i < scene.Instances.Count; i++)
+        {
+            if (_plantsByModel.TryGetValue(scene.Instances[i].ModelIndex, out PlantRender? plant))
+            {
+                plant.InstanceIndices.Add(i);
+            }
+        }
     }
 
     public void Dispose()
@@ -485,11 +529,13 @@ internal sealed class SceneRenderer : IDisposable
 
     private sealed class PlantRender
     {
+        public required int ModelIndex { get; init; }
+
         public List<GlMesh> Meshes { get; } = [];
 
         public List<SceneMesh> SceneMeshes { get; set; } = [];
 
-        public List<int> InstanceIndices { get; set; } = [];
+        public List<int> InstanceIndices { get; } = [];
     }
 }
 
