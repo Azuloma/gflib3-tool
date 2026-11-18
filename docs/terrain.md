@@ -80,6 +80,12 @@ against the mapping.
 The 2049² heightmaps are higher-resolution samples of the same 1024×1024 extent,
 not 2×2 cells at one unit per sample.
 
+Area06's `terrain_1_1` pack is a single cell: its heightmap covers the full
+1024×1024 extent but is zero outside the playable patch, so the viewer draws a
+flat surrounding plane. The area06 NPCs at world (502, 516) align with sample
+(1004, 1033) = 10.475. Streaming and hole masking for `terrain_X_Z_*` cells
+remain unresolved.
+
 ## Splat layers
 
 `SplatAlpha` is a **2-slice array texture** (BC7 UNORM, 1024² per slice), matching
