@@ -131,8 +131,13 @@ Example (first area-00 tree instance):
  445.1664 60.78404 650.67 1
 ```
 
-The exact multiplication convention (row-vector vs. column-vector, handedness)
-is still a hypothesis until the renderer matches the game.
+The row-vector reading (`v' = v * M`) follows from the upload path: the stored
+rows go to the `uModel` uniform untransposed, and since `Matrix4x4` is row-major
+while GLSL reads the uniform as column-major, the shader's
+`model * vec4(position, 1)` is equivalent to `v * M`. Translation was
+spot-checked on the area-00 tree at `(445.1664, 60.78404, 650.67)`, whose Y
+matches the heightmap sample and whose trunk base contacts the terrain in
+close-up; this does not independently establish yaw.
 
 File naming:
 
@@ -214,7 +219,8 @@ The format supports adding instances, not just moving existing ones:
   cell/grid coordinates must match the world position.
 - Collision generation/update for newly placed vegetation.
 - Detail-group (field 6) semantics: are grass layers explicitly instanced?
-- Matrix multiplication convention and coordinate handedness at render time.
+- Coordinate handedness at render time against an external game reference; the
+  row-vector convention is fixed by the upload path.
 - `d0` LOD/detail semantics.
 - Whether update-layer terrain packs replace whole packs or individual entries.
 - Gfpak writing/compression for the RomFS overlay (Kraken encoder unresolved;

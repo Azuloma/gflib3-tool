@@ -3,8 +3,9 @@
 Status: **schema and transform application verified** for areas 00 and 04.
 `resident_release.gfpak` places background models, event objects, NPCs, doors,
 and effects in world space. Model files carry local coordinates only; the
-viewer must apply the transforms below. Yaw sign/handedness still needs a
-non-symmetric visual check.
+viewer must apply the transforms below. The renderer's row-vector convention
+and sampled resident yaw are verified (see Transform application); handedness
+against an external game reference remains open.
 
 ## Where it lives
 
@@ -106,11 +107,21 @@ The mountain's local bounds are ±2429.0 in X/Z and 1458.3 in Y, so the scale is
 not unity. Applying `T * R_y(180°) * S` places the centre near
 `(1817.5, 503.2, -3660.1)` with extents around ±1700.
 
-`1707` places three statue types on a square around the temple with positions
-`(483.18, 59.0, 570.64)`, `(511.97, 59.0, 570.64)`,
-`(511.97, 59.0, 548.03)`, and `(483.18, 59.0, 548.0)`, with yaws of 90, 180,
-and -90 degrees. The consistent square and ground height support world-space
-positions with a yaw-only rotation.
+`1707` is the area-05 temple interior and contains two distinct statue groups:
+
+- Aisle statues (`objects_area05_ktemple_statue01..03`) at `y=50`, in two
+  columns at `x=488.2` and `x=512.3`, with `z` near 519.9, 527.8, and 543.8,
+  and yaws of `+90` (west column) and `-90` (east column). Close-up renders
+  show both columns facing the central walkway.
+- Upper puzzle statues (`ground_area05_ktemple_statue01..03`) at `y=59`,
+  scattered around the platform. Parsed samples include
+  `(483.18, 59.0, 570.64)` yaw 90, `(511.97, 59.0, 570.64)` yaw 180,
+  `(511.97, 59.0, 548.03)` yaw -90, and `(472.0, 59.0, 558.1)` yaw 180.
+
+The same entry places two Unown gate panels with world width along the wall
+plane: `gimmick_area05_ktemple_gate01` at `(508.0, 59.1, 515.5)` yaw 0 spans
+world X, and the panel at `(499.7, 59.1, 547.9)` yaw 90 spans world Z; both sit
+flush in wall openings.
 
 `1531`, scene 0 (`area04_npc_ouji`): 11 nodes, first at
 `(184.913, 154.804, 472.91)`, yaw `-58.3`, scale 1.
@@ -158,10 +169,17 @@ decide placement area.
 
 ## Transform application
 
-Use `world = T * R_y(yaw) * S` on local model vertices. Areas 00 and 04 render
-correctly with this order (Mt. Tengen and the area-04 building cluster). The
-yaw sign and handedness are the remaining unknowns; check them with the temple
-statue square or a door frame.
+Use `world = T * R_y(yaw) * S` on local model vertices; as row-vector math this
+is `v' = v * S * R_y * T`. Mt. Tengen, the area-04 temple and its staircase,
+and the area-05 temple interior render correctly with this order.
+
+The yaw sign is confirmed by the area-05 temple interior. The aisle statues
+(`objects_area05_ktemple_statue*` at `y=50`) stand at `x=488.2` and `x=512.3`
+with yaws `+90` and `-90`; both columns face the central walkway, and the two
+Unown gate panels sit flush in their wall openings. A flipped sign would rotate
+every statue away from the aisle. The `.trins` vegetation matrices use the same
+row-major convention, but vegetation yaw was not independently verified because
+the sampled trees offered no reliable reference orientation.
 
 ## Consequence
 
@@ -175,5 +193,6 @@ vertices and bounds are correct. Scene placement is implemented in
 - Node fields 3–6 (empty vectors in every observed node).
 - Entry `0091` building-layout schema and whether it adds objects not covered by `0095`.
 - Visibility-group semantics (`FEVE_VISIBLE_*`) and streaming cells.
-- Yaw sign and coordinate handedness for the final transform.
+- Coordinate handedness against an external game reference; the renderer
+  convention and sampled resident yaw are verified.
 - Scene flag (field 3) semantics; distinction between model and event scenes.

@@ -90,7 +90,8 @@ Options:
     Resolve every scene by `ModelHash` (names are optional) and load the packed
     TRMDL from the base area pack, the selected model pack, the area sub-packs,
     or another base area pack for shared models. Instantiate each node's SRT
-    (`T * R_y(yaw) * S`). Ownership is decided per placement table from scene
+    (`T * R_y(yaw) * S`; yaw sign verified against the area-05 temple, see
+    `scene-layout.md`). Ownership is decided per placement table from scene
     names and catalog tokens; interior sub-area tables stay separate, while
     outdoor sub-area packs fold into the base area. Tables with no token fall
     back to node-Y/heightmap proximity. Vista shells are skipped because the
