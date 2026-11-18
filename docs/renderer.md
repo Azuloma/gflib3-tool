@@ -162,8 +162,8 @@ changes language at runtime. A CJK font is loaded from the Windows font folder
   Models whose TRMSH has no meshes are reported as empty models and skipped, not
   unresolved; observed examples are `wall_area00_02`,
   `wall_area01_water01_asase`, `wall_area01_kingtree01`,
-  `wall_area02_floor01`, `objects_oldtextplate07`, and
-  `wall_area03_water01_asase`.
+  `wall_area02_floor01`, `objects_oldtextplate06`,
+  `objects_oldtextplate07`, and `wall_area03_water01_asase`.
 - Placement-table ownership is inferred from dominant scene/catalog tokens, then
   per-scene name or 12-unit heightmap tolerance for tokenless tables. Mixed tables
   that contain both an interior and outdoor scenes are handled by including only
