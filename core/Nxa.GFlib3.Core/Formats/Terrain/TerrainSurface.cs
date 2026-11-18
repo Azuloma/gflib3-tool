@@ -11,17 +11,57 @@ namespace Nxa.GFlib3.Core.Formats.Terrain;
 /// </summary>
 public sealed class TerrainSurface
 {
-    private TerrainSurface(TerrainHeightmap heightmap, float heightScale)
+    private TerrainSurface(
+        TerrainHeightmap heightmap,
+        float heightScale,
+        float worldUnitsPerSampleX,
+        float worldUnitsPerSampleZ)
     {
         Heightmap = heightmap;
         HeightScale = heightScale;
+        WorldUnitsPerSampleX = worldUnitsPerSampleX;
+        WorldUnitsPerSampleZ = worldUnitsPerSampleZ;
     }
 
     public TerrainHeightmap Heightmap { get; }
 
     public float HeightScale { get; }
 
-    public float GetWorldHeight(int x, int y) => Heightmap.GetHeight(x, y) * HeightScale;
+    /// <summary>
+    /// World distance between heightmap samples. The manifest grid is 1024
+    /// units across, so 1025² maps to 1 and 2049² maps to 0.5.
+    /// </summary>
+    public float WorldUnitsPerSampleX { get; }
+
+    public float WorldUnitsPerSampleZ { get; }
+
+    public float WorldExtentX => (Heightmap.Width - 1) * WorldUnitsPerSampleX;
+
+    public float WorldExtentZ => (Heightmap.Height - 1) * WorldUnitsPerSampleZ;
+
+    public float GetHeightAtSample(int x, int y) => Heightmap.GetHeight(x, y) * HeightScale;
+
+    /// <summary>Samples the height nearest to a world X/Z position.</summary>
+    public bool TryGetWorldHeight(float worldX, float worldZ, out float height)
+    {
+        height = 0f;
+        if (!float.IsFinite(worldX) || !float.IsFinite(worldZ)
+            || worldX < 0f || worldZ < 0f
+            || worldX > WorldExtentX || worldZ > WorldExtentZ)
+        {
+            return false;
+        }
+
+        int x = (int)MathF.Round(worldX / WorldUnitsPerSampleX);
+        int y = (int)MathF.Round(worldZ / WorldUnitsPerSampleZ);
+        if ((uint)x >= (uint)Heightmap.Width || (uint)y >= (uint)Heightmap.Height)
+        {
+            return false;
+        }
+
+        height = GetHeightAtSample(x, y);
+        return true;
+    }
 
     /// <summary>Builds a surface from a manifest and a decoded heightmap grid.</summary>
     public static TerrainSurface Create(TerrainManifest manifest, TerrainHeightmap heightmap)
@@ -35,9 +75,29 @@ public sealed class TerrainSurface
                 $"Terrain manifest height extent {manifest.HeightScale} is not a positive finite value.");
         }
 
-        // The manifest grid value is per-cell (1025) while multi-cell packs carry
-        // 2049x2049 heightmaps, so dimensions are validated on the texture only.
-        return new TerrainSurface(heightmap, manifest.HeightScale);
+        if (heightmap.Width < 2 || heightmap.Height < 2)
+        {
+            throw new InvalidDataException(
+                $"Terrain heightmap {heightmap.Width}x{heightmap.Height} has no sample spacing.");
+        }
+
+        if (manifest.GridWidth <= 1 || manifest.GridHeight <= 1
+            || !float.IsFinite(manifest.GridWidth) || !float.IsFinite(manifest.GridHeight))
+        {
+            throw new InvalidDataException(
+                $"Terrain manifest grid {manifest.GridWidth}x{manifest.GridHeight} is not a valid world extent.");
+        }
+
+        float unitsPerSampleX = (manifest.GridWidth - 1) / (heightmap.Width - 1);
+        float unitsPerSampleZ = (manifest.GridHeight - 1) / (heightmap.Height - 1);
+        if (unitsPerSampleX <= 0 || unitsPerSampleZ <= 0
+            || !float.IsFinite(unitsPerSampleX) || !float.IsFinite(unitsPerSampleZ))
+        {
+            throw new InvalidDataException(
+                $"Terrain sample spacing {unitsPerSampleX}x{unitsPerSampleZ} is not positive and finite.");
+        }
+
+        return new TerrainSurface(heightmap, manifest.HeightScale, unitsPerSampleX, unitsPerSampleZ);
     }
 
     public static TerrainSurface Load(

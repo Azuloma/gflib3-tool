@@ -249,6 +249,8 @@ public static class FieldSceneLoader
             scene.Terrain = mesh;
             scene.Messages.Add(
                 $"terrain: {surface.Heightmap.Width}x{surface.Heightmap.Height}, "
+                + $"{surface.WorldUnitsPerSampleX:0.###}x{surface.WorldUnitsPerSampleZ:0.###} units/sample, "
+                + $"extent {surface.WorldExtentX:0.#}x{surface.WorldExtentZ:0.#}, "
                 + $"scale {surface.HeightScale:0.###}, {mesh.Vertices.Length:N0} vertices.");
 
             LoadTerrainSplat(pack, scene, material, tileScale);
@@ -755,15 +757,8 @@ public static class FieldSceneLoader
         }
 
         const float tolerance = 12f;
-        TerrainHeightmap map = terrain.Heightmap;
-        int x = (int)MathF.Round(node.Position.X);
-        int z = (int)MathF.Round(node.Position.Z);
-        if (x < 0 || z < 0 || x >= map.Width || z >= map.Height)
-        {
-            return false;
-        }
-
-        return MathF.Abs(node.Position.Y - terrain.GetWorldHeight(x, z)) <= tolerance;
+        return terrain.TryGetWorldHeight(node.Position.X, node.Position.Z, out float height)
+            && MathF.Abs(node.Position.Y - height) <= tolerance;
     }
 
     private enum SceneAreaMatch

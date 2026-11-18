@@ -88,6 +88,11 @@ internal static class TerrainCommand
         Console.WriteLine(
             string.Create(
                 CultureInfo.InvariantCulture,
+                $"extent:    {surface.WorldExtentX:0.###} x {surface.WorldExtentZ:0.###} "
+                + $"({surface.WorldUnitsPerSampleX:0.###} x {surface.WorldUnitsPerSampleZ:0.###} units/sample)"));
+        Console.WriteLine(
+            string.Create(
+                CultureInfo.InvariantCulture,
                 $"scale:     {surface.HeightScale:0.###}"));
         Console.WriteLine(
             string.Create(
@@ -96,14 +101,14 @@ internal static class TerrainCommand
         Console.WriteLine(
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"center:    {surface.GetWorldHeight(map.Width / 2, map.Height / 2):0.###}"));
+                $"center:    {surface.GetHeightAtSample(map.Width / 2, map.Height / 2):0.###}"));
 
         if (sample is (int sampleXValue, int sampleYValue))
         {
             Console.WriteLine(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"sample:    ({sampleXValue}, {sampleYValue}) = {surface.GetWorldHeight(sampleXValue, sampleYValue):0.###}"));
+                    $"sample:    ({sampleXValue}, {sampleYValue}) = {surface.GetHeightAtSample(sampleXValue, sampleYValue):0.###}"));
         }
 
         return 0;

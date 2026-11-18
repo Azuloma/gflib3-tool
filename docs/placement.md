@@ -46,7 +46,7 @@ Observed root fields (verified in areas 00–06 and 11):
 | --- | --- | --- |
 | 0 | table | up to four floats; present fields are 0.5/0.5/0.5/0.7 or 0.5/0.5/0.7 |
 | 1 | table | f32 ×3 then u32 ×2: `1025, 1025, height`; dimensions are 1025 or 2048 |
-| 2 | table | three u32: `1024, 1024, 1025` (or `2048, 2048, 2049`) |
+| 2 | table | three u32: `1024, 1024, heightmap size` (1025 or 2049) |
 | 3 | u32 | plant group count |
 | 4 | table[] | plant groups |
 | 5 | u32 | detail group count |

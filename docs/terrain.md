@@ -1,7 +1,8 @@
 ﻿# Terrain (heightmap and material)
 
 Status: heightmap format, height scale, and world mapping verified against areas
-00, 01, 04, and 05. Splat-layer weights and procedural detail remain unresolved.
+00, 01, 02, 04, and 05. Splat-layer weights and procedural detail remain
+unresolved.
 
 ## Where it lives
 
@@ -46,8 +47,13 @@ Verified scales:
 
 ## World mapping (verified)
 
-- Column index maps to world X, row index to world Z, at one world unit per
-  sample, with the grid origin at `(0, 0)`.
+- The manifest grid is 1025×1025 samples over a 1024×1024 world area; manifest
+  field 2 reports the same 1024 cell size. World units per heightmap sample are
+  `(grid - 1) / (heightmap size - 1)`:
+  - 1025² heightmap: 1 unit/sample, extent 1024×1024.
+  - 2049² heightmap: 0.5 units/sample, same 1024×1024 extent.
+- Column index maps to world X = column × units/sample, row index to world Z.
+  The grid origin is `(0, 0)`.
 - `Y = normalizedHeight * scale`, no vertical offset.
 
 Evidence:
@@ -58,14 +64,21 @@ first tree instance y at (445.1664, 650.67) = 60.784
 
 terrain area04 sample (184, 472) = 154.843
 area04 NPC node y at (184.913, 472.91) = 154.804
+
+area02 keystone world (640.058, 121.931, 138.576)
+  -> sample (1280, 277) = 121.925
+area02 tent world (641.457, 45.491, 731.721)
+  -> sample (1283, 1463) = 45.492
+area02 cave world (746.033, 92, 298.152)
+  -> sample (1492, 596) = 92.004
 ```
 
 The area-05 temple statues sit at `y=59` while the surrounding terrain sample is
 `109.594`; the temple is an interior/underground space, so this is not evidence
 against the mapping.
 
-Heightmaps of 2049² cover multiple 1025² cells (for example 2ÁE cells sharing
-edges). The mapping stays one unit per sample.
+The 2049² heightmaps are higher-resolution samples of the same 1024×1024 extent,
+not 2×2 cells at one unit per sample.
 
 ## Splat layers
 
@@ -101,8 +114,9 @@ payloads) are not albedo textures:
 
 `TerrainMeshBuilder.Build(surface, stride)` produces a regular grid:
 
-- position `(x, height, y)`, up-facing triangle winding;
-- normals from central differences of scaled heights;
+- position `(x × unitsPerSampleX, height, y × unitsPerSampleZ)`, up-facing
+  triangle winding;
+- normals from central differences of scaled heights over world distance;
 - UV `(x / (width - 1), y / (height - 1))` in file row order;
 - `stride` samples every Nth row/column for previews.
 
@@ -110,9 +124,12 @@ payloads) are not albedo textures:
 
 ```text
 terrain manifest <gfpak>                 plant/detail groups and material
-terrain heightmap <gfpak> [--sample X Y] dimensions, scale, range, sample
+terrain heightmap <gfpak> [--sample X Y] extent, dimensions, scale, range, sample
 terrain mesh <gfpak> [--stride N]        vertex/index counts and bounds
 ```
+
+`--sample` takes heightmap sample indices; use `extent` and `units/sample` to map
+world coordinates to samples.
 
 ## Open questions
 
@@ -120,7 +137,7 @@ terrain mesh <gfpak> [--stride N]        vertex/index counts and bounds
 - Formal `SplatST` units (x128 is the current default) and V orientation.
 - sRGB handling for terrain albedo uploads.
 - Terrain descriptor entry 3: layer tables, quad counts, and remaining fields.
-- World offset and streaming for multi-cell and `terrain_X_Z_*` packs.
+- World offset and streaming for `terrain_X_Z_*` packs.
 - Detail groups: procedural grass scatter rules and the 17 E8 trailing
   parameters.
 - Entry 2 (`TAG0` / `SDKV` container): role still unidentified.

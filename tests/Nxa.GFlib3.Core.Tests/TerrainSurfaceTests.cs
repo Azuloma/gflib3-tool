@@ -22,12 +22,14 @@ public sealed class TerrainSurfaceTests
             Assert.Equal(1025, surface.Heightmap.Width);
             Assert.Equal(1025, surface.Heightmap.Height);
             Assert.Equal(185f, surface.HeightScale, 3);
+            Assert.Equal(1f, surface.WorldUnitsPerSampleX, 3);
+            Assert.Equal(1024f, surface.WorldExtentX, 3);
 
             (float min, float max) = surface.Heightmap.GetRange();
             Assert.Equal(0f, min, 3);
             Assert.Equal(0.854f, max, 3);
 
-            Assert.Equal(60.793f, surface.GetWorldHeight(445, 650), 2);
+            Assert.Equal(60.793f, surface.GetHeightAtSample(445, 650), 2);
         }
     }
 
@@ -52,7 +54,7 @@ public sealed class TerrainSurfaceTests
     }
 
     [Fact]
-    public void ReadsArea05MultiCellHeightmapWhenDumpIsConfigured()
+    public void ReadsArea05HighResolutionHeightmapWhenDumpIsConfigured()
     {
         if (!TryLoad("ha_area05", out GfpakArchive? archive, out TerrainSurface? surface)
             || archive is null || surface is null)
@@ -65,6 +67,48 @@ public sealed class TerrainSurfaceTests
             Assert.Equal(2049, surface.Heightmap.Width);
             Assert.Equal(2049, surface.Heightmap.Height);
             Assert.Equal(168f, surface.HeightScale, 3);
+            Assert.Equal(0.5f, surface.WorldUnitsPerSampleX, 3);
+            Assert.Equal(0.5f, surface.WorldUnitsPerSampleZ, 3);
+            Assert.Equal(1024f, surface.WorldExtentX, 3);
+            Assert.Equal(1024f, surface.WorldExtentZ, 3);
+        }
+    }
+
+    [Fact]
+    public void MapsArea02PlacementsToHeightmapWorldCoordinatesWhenDumpIsConfigured()
+    {
+        if (!TryLoad("ha_area02", out GfpakArchive? archive, out TerrainSurface? surface)
+            || archive is null || surface is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            Assert.Equal(2049, surface.Heightmap.Width);
+            Assert.Equal(0.5f, surface.WorldUnitsPerSampleX, 3);
+            Assert.Equal(1024f, surface.WorldExtentX, 3);
+
+            Assert.True(surface.TryGetWorldHeight(640.058f, 138.576f, out float keystone));
+            Assert.Equal(121.931f, keystone, 1);
+
+            Assert.True(surface.TryGetWorldHeight(641.457f, 731.721f, out float tent));
+            Assert.Equal(45.491f, tent, 1);
+
+            Assert.True(surface.TryGetWorldHeight(746.033f, 298.152f, out float cave));
+            Assert.Equal(92f, cave, 1);
+
+            Assert.True(surface.TryGetWorldHeight(0f, 0f, out _));
+            Assert.True(surface.TryGetWorldHeight(surface.WorldExtentX, surface.WorldExtentZ, out _));
+            Assert.False(surface.TryGetWorldHeight(-0.125f, 0f, out _));
+            Assert.False(surface.TryGetWorldHeight(surface.WorldExtentX + 0.125f, 0f, out _));
+            Assert.False(surface.TryGetWorldHeight(-1f, 0f, out _));
+            Assert.False(surface.TryGetWorldHeight(surface.WorldExtentX + 1f, 0f, out _));
+
+            TerrainMeshGeometry mesh = TerrainMeshBuilder.Build(surface, 256);
+            Assert.Equal(0f, mesh.Bounds.Min.X, 3);
+            Assert.Equal(1024f, mesh.Bounds.Max.X, 3);
+            Assert.Equal(1024f, mesh.Bounds.Max.Z, 3);
         }
     }
 

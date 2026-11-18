@@ -17,7 +17,8 @@ public readonly record struct TerrainVertex(
 
 /// <summary>
 /// Builds a regular grid mesh from a <see cref="TerrainSurface"/>. Grid X maps to
-/// world X and grid Y to world Z; world offset and handedness are not applied.
+/// world X and grid Y to world Z using the surface's sample spacing; world offset
+/// and handedness are not applied.
 /// </summary>
 public static class TerrainMeshBuilder
 {
@@ -52,7 +53,10 @@ public static class TerrainMeshBuilder
             for (int column = 0; column < columns; column++)
             {
                 int x = Math.Min(column * stride, width - 1);
-                var position = new Vector3f(x, surface.GetWorldHeight(x, y), y);
+                var position = new Vector3f(
+                    x * surface.WorldUnitsPerSampleX,
+                    surface.GetHeightAtSample(x, y),
+                    y * surface.WorldUnitsPerSampleZ);
                 var normal = ComputeNormal(surface, x, y);
                 var uv = new Vector2f(
                     width > 1 ? (float)x / (width - 1) : 0,
@@ -107,8 +111,10 @@ public static class TerrainMeshBuilder
         int y0 = Math.Max(y - 1, 0);
         int y1 = Math.Min(y + 1, heightmap.Height - 1);
 
-        float dx = (surface.GetWorldHeight(x1, y) - surface.GetWorldHeight(x0, y)) / (x1 - x0);
-        float dz = (surface.GetWorldHeight(x, y1) - surface.GetWorldHeight(x, y0)) / (y1 - y0);
+        float dx = (surface.GetHeightAtSample(x1, y) - surface.GetHeightAtSample(x0, y))
+            / ((x1 - x0) * surface.WorldUnitsPerSampleX);
+        float dz = (surface.GetHeightAtSample(x, y1) - surface.GetHeightAtSample(x, y0))
+            / ((y1 - y0) * surface.WorldUnitsPerSampleZ);
 
         var normal = new Vector3f(-dx, 1, -dz);
         float length = MathF.Sqrt((normal.X * normal.X) + (normal.Y * normal.Y) + (normal.Z * normal.Z));
