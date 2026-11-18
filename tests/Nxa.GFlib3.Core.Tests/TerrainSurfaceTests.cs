@@ -28,6 +28,8 @@ public sealed class TerrainSurfaceTests
             (float min, float max) = surface.Heightmap.GetRange();
             Assert.Equal(0f, min, 3);
             Assert.Equal(0.854f, max, 3);
+            Assert.Equal(min * surface.HeightScale, surface.MinHeight, 3);
+            Assert.Equal(max * surface.HeightScale, surface.MaxHeight, 3);
 
             Assert.Equal(60.793f, surface.GetHeightAtSample(445, 650), 2);
         }

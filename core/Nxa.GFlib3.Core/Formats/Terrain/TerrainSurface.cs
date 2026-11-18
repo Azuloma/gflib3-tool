@@ -15,17 +15,27 @@ public sealed class TerrainSurface
         TerrainHeightmap heightmap,
         float heightScale,
         float worldUnitsPerSampleX,
-        float worldUnitsPerSampleZ)
+        float worldUnitsPerSampleZ,
+        float minHeight,
+        float maxHeight)
     {
         Heightmap = heightmap;
         HeightScale = heightScale;
         WorldUnitsPerSampleX = worldUnitsPerSampleX;
         WorldUnitsPerSampleZ = worldUnitsPerSampleZ;
+        MinHeight = minHeight;
+        MaxHeight = maxHeight;
     }
 
     public TerrainHeightmap Heightmap { get; }
 
     public float HeightScale { get; }
+
+    /// <summary>Lowest surface height in world units.</summary>
+    public float MinHeight { get; }
+
+    /// <summary>Highest surface height in world units.</summary>
+    public float MaxHeight { get; }
 
     /// <summary>
     /// World distance between heightmap samples. The manifest grid is 1024
@@ -97,7 +107,14 @@ public sealed class TerrainSurface
                 $"Terrain sample spacing {unitsPerSampleX}x{unitsPerSampleZ} is not positive and finite.");
         }
 
-        return new TerrainSurface(heightmap, manifest.HeightScale, unitsPerSampleX, unitsPerSampleZ);
+        (float min, float max) = heightmap.GetRange();
+        return new TerrainSurface(
+            heightmap,
+            manifest.HeightScale,
+            unitsPerSampleX,
+            unitsPerSampleZ,
+            min * manifest.HeightScale,
+            max * manifest.HeightScale);
     }
 
     public static TerrainSurface Load(

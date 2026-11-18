@@ -3,6 +3,7 @@
 
 using System.Numerics;
 using Nxa.GFlib3.Core.FlatBuffers;
+using Nxa.GFlib3.Core.Formats.Terrain;
 
 namespace Nxa.GFlib3.Render.Scene;
 
@@ -15,6 +16,8 @@ public static class ScenePicking
     private const float MinViewSize = 1e-3f;
     private const float MinDirectionLengthSquared = 1e-12f;
     private const float SlabEpsilon = 1e-8f;
+    private const float MinTerrainPickStep = 0.25f;
+    private const int TerrainPickRefineSteps = 12;
 
     public static bool TryScreenRay(
         Vector2 screen,
@@ -110,28 +113,178 @@ public static class ScenePicking
         return index >= 0;
     }
 
+    /// <summary>Returns the first terrain surface point under the ray.</summary>
+    public static bool TryPickTerrain(
+        TerrainSurface surface,
+        SceneRay ray,
+        float maxDistance,
+        out Vector3 point)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        point = default;
+        if (!float.IsFinite(maxDistance) || maxDistance <= 0f || !IsFinite(ray.Origin))
+        {
+            return false;
+        }
+
+        float directionLength = ray.Direction.Length();
+        if (!float.IsFinite(directionLength) || directionLength < MinDirectionLengthSquared)
+        {
+            return false;
+        }
+
+        Vector3 direction = ray.Direction / directionLength;
+        var bounds = new BoundingBox(
+            new Vector3f(0f, surface.MinHeight, 0f),
+            new Vector3f(surface.WorldExtentX, surface.MaxHeight, surface.WorldExtentZ));
+        if (!ClipRayToBounds(ray.Origin, direction, bounds, out float entry, out float exit))
+        {
+            return false;
+        }
+
+        float start = MathF.Max(entry, 0f);
+        float end = MathF.Min(exit, maxDistance);
+        if (end < start
+            || !TrySampleTerrain(surface, ray.Origin, direction, start, out float previousDifference)
+            || previousDifference < 0f)
+        {
+            return false;
+        }
+
+        if (previousDifference == 0f)
+        {
+            return RefineTerrainHit(surface, ray.Origin, direction, start, start, out point);
+        }
+
+        float step = MathF.Max(
+            MinTerrainPickStep,
+            MathF.Min(surface.WorldUnitsPerSampleX, surface.WorldUnitsPerSampleZ));
+        float previousDistance = start;
+        for (float distance = start + step; ; distance += step)
+        {
+            bool last = distance >= end;
+            if (last)
+            {
+                distance = end;
+            }
+
+            if (TrySampleTerrain(surface, ray.Origin, direction, distance, out float difference))
+            {
+                if (difference <= 0f && previousDifference > 0f)
+                {
+                    return RefineTerrainHit(
+                        surface,
+                        ray.Origin,
+                        direction,
+                        previousDistance,
+                        distance,
+                        out point);
+                }
+
+                previousDistance = distance;
+                previousDifference = difference;
+            }
+
+            if (last)
+            {
+                return false;
+            }
+        }
+    }
+
     public static bool IntersectsBounds(
         Vector3 origin,
         Vector3 direction,
         BoundingBox bounds,
         out float distance)
     {
-        float near = 0f;
-        float far = float.PositiveInfinity;
-        if (direction.LengthSquared() < MinDirectionLengthSquared
-            || !float.IsFinite(direction.X)
-            || !float.IsFinite(direction.Y)
-            || !float.IsFinite(direction.Z)
-            || !ClipAxis(origin.X, direction.X, bounds.Min.X, bounds.Max.X, ref near, ref far)
-            || !ClipAxis(origin.Y, direction.Y, bounds.Min.Y, bounds.Max.Y, ref near, ref far)
-            || !ClipAxis(origin.Z, direction.Z, bounds.Min.Z, bounds.Max.Z, ref near, ref far)
-            || far < near)
+        if (!ClipRayToBounds(origin, direction, bounds, out float near, out float _))
         {
             distance = 0f;
             return false;
         }
 
         distance = near;
+        return true;
+    }
+
+    private static bool ClipRayToBounds(
+        Vector3 origin,
+        Vector3 direction,
+        BoundingBox bounds,
+        out float near,
+        out float far)
+    {
+        near = 0f;
+        far = float.PositiveInfinity;
+        if (direction.LengthSquared() < MinDirectionLengthSquared
+            || !IsFinite(origin)
+            || !IsFinite(bounds)
+            || !ClipAxis(origin.X, direction.X, bounds.Min.X, bounds.Max.X, ref near, ref far)
+            || !ClipAxis(origin.Y, direction.Y, bounds.Min.Y, bounds.Max.Y, ref near, ref far)
+            || !ClipAxis(origin.Z, direction.Z, bounds.Min.Z, bounds.Max.Z, ref near, ref far)
+            || far < near)
+        {
+            near = 0f;
+            far = 0f;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool RefineTerrainHit(
+        TerrainSurface surface,
+        Vector3 origin,
+        Vector3 direction,
+        float aboveDistance,
+        float belowDistance,
+        out Vector3 point)
+    {
+        point = default;
+        for (int i = 0; i < TerrainPickRefineSteps; i++)
+        {
+            float middle = (aboveDistance + belowDistance) * 0.5f;
+            if (!TrySampleTerrain(surface, origin, direction, middle, out float difference))
+            {
+                break;
+            }
+
+            if (difference > 0f)
+            {
+                aboveDistance = middle;
+            }
+            else
+            {
+                belowDistance = middle;
+            }
+        }
+
+        point = origin + (direction * belowDistance);
+        if (!surface.TryGetWorldHeight(point.X, point.Z, out float height))
+        {
+            return false;
+        }
+
+        point.Y = height;
+        return true;
+    }
+
+    private static bool TrySampleTerrain(
+        TerrainSurface surface,
+        Vector3 origin,
+        Vector3 direction,
+        float distance,
+        out float difference)
+    {
+        Vector3 sample = origin + (direction * distance);
+        if (!surface.TryGetWorldHeight(sample.X, sample.Z, out float height))
+        {
+            difference = 0f;
+            return false;
+        }
+
+        difference = sample.Y - height;
         return true;
     }
 
@@ -159,6 +312,11 @@ public static class ScenePicking
         far = MathF.Min(far, second);
         return true;
     }
+
+    private static bool IsFinite(Vector3 value) =>
+        float.IsFinite(value.X)
+        && float.IsFinite(value.Y)
+        && float.IsFinite(value.Z);
 
     private static bool IsFinite(BoundingBox bounds) =>
         float.IsFinite(bounds.Min.X)

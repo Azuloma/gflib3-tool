@@ -28,7 +28,8 @@ referenced file by hashing `bin/field/terrain/ha_areaNN/terrain/<file>`.
 - Stored as BNTX tile mode 0, one mip, `R16_FLOAT` (0x0A05) or `R32_FLOAT`
   (0x1405).
 - Samples are normalized to 0..1. World height is `sample * heightScale`, where
-  the scale comes from terrain manifest field 1, third float.
+  the scale comes from terrain manifest field 1, third float. `TerrainSurface`
+  caches the scaled range as `MinHeight`/`MaxHeight` for bounds and ray tests.
 
 Verified scales:
 

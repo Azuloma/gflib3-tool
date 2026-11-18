@@ -3,6 +3,7 @@
 
 using System.Numerics;
 using Nxa.GFlib3.Core.FlatBuffers;
+using Nxa.GFlib3.Core.Formats.Terrain;
 using Nxa.GFlib3.Core.Formats.Trinity;
 using Nxa.GFlib3.Render.Camera;
 using Nxa.GFlib3.Render.Editing;
@@ -194,6 +195,69 @@ public sealed class ScenePickingTests
             scene,
             new SceneRay(new Vector3(0f, 1f, -10f), Vector3.UnitZ),
             out _));
+    }
+
+    [Fact]
+    public void PicksTerrainAtKnownSampleWhenDumpIsConfigured()
+    {
+        string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");
+        if (string.IsNullOrWhiteSpace(dump))
+        {
+            return;
+        }
+
+        FieldScene scene = FieldSceneLoader.Load(dump, "ha_area00", "ha_area00", null);
+        TerrainSurface? surface = scene.TerrainSurface;
+        Assert.NotNull(surface);
+
+        var origin = new Vector3(445.1664f, 200f, 650.67f);
+        bool hit = ScenePicking.TryPickTerrain(
+            surface,
+            new SceneRay(origin, -Vector3.UnitY),
+            1000f,
+            out Vector3 point);
+
+        Assert.True(hit);
+        Assert.Equal(origin.X, point.X, 2);
+        Assert.Equal(origin.Z, point.Z, 2);
+        Assert.InRange(point.Y, 60.7f, 60.9f);
+
+        Assert.False(ScenePicking.TryPickTerrain(
+            surface,
+            new SceneRay(new Vector3(origin.X, point.Y - 10f, origin.Z), -Vector3.UnitY),
+            1000f,
+            out _));
+
+        Assert.False(ScenePicking.TryPickTerrain(
+            surface,
+            new SceneRay(new Vector3(-10f, 200f, origin.Z), -Vector3.UnitY),
+            1000f,
+            out _));
+    }
+
+    [Fact]
+    public void PicksFlatTerrainWhenDumpIsConfigured()
+    {
+        string? dump = Environment.GetEnvironmentVariable("NXA_GF3_DUMP");
+        if (string.IsNullOrWhiteSpace(dump))
+        {
+            return;
+        }
+
+        FieldScene scene = FieldSceneLoader.Load(dump, "ha_area11", "ha_area11", null);
+        TerrainSurface? surface = scene.TerrainSurface;
+        Assert.NotNull(surface);
+        Assert.Equal(0f, surface.MinHeight, 3);
+        Assert.Equal(0f, surface.MaxHeight, 3);
+
+        bool hit = ScenePicking.TryPickTerrain(
+            surface,
+            new SceneRay(new Vector3(100f, 50f, 100f), -Vector3.UnitY),
+            1000f,
+            out Vector3 point);
+
+        Assert.True(hit);
+        Assert.Equal(0f, point.Y, 3);
     }
 
     private static FieldScene CreateScene()
