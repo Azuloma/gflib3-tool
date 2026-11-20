@@ -251,6 +251,9 @@ public sealed class PlantInstance(int modelIndex, Matrix4x4RowMajor matrix)
     /// <summary>Editable row-major transform; the renderer reads it every frame.</summary>
     public Matrix4x4RowMajor Matrix { get; set; } = matrix;
 
+    /// <summary>Load-time transform, kept for project diffs and source validation.</summary>
+    public Matrix4x4RowMajor OriginalMatrix { get; } = matrix;
+
     /// <summary>Source file, or null for instances created without a backing `.trins`.</summary>
     public PlantInstanceFile? SourceFile { get; init; }
 

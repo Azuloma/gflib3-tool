@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Numerics;
 using ImGuiNET;
 using Nxa.GFlib3.Core.Formats.Gfpak;
+using Nxa.GFlib3.Render.Editing;
 using Nxa.GFlib3.Render.Scene;
 
 namespace Nxa.GFlib3.Render.Ui;
@@ -14,8 +15,240 @@ public sealed partial class EditorShell
     private const int AssetColumnCount = 5;
     private const double Megabyte = 1024d * 1024d;
     private const double Kilobyte = 1024d;
+    private const string OpenProjectPopupSuffix = "###openProject";
+    private const string SaveProjectPopupSuffix = "###saveProject";
 
     private readonly record struct AssetHeaderInfo(GfpakHeader? Header, string? Error);
+
+    public bool HasUnsavedChanges => _project.IsDirty;
+
+    public string? ProjectPath => _project.ProjectPath;
+
+    public int PendingChangeCount => _project.CountUnsavedChanges(_scene);
+
+    /// <summary>Opens a project onto the current scene; the scene must be freshly loaded.</summary>
+    public bool OpenProject(string path)
+    {
+        if (_project.IsDirty)
+        {
+            _scene.Messages.Add(
+                "warning: reload the area before opening a project; the current edits are unsaved.");
+            _projectDialogError = _text.T("project.unsaved");
+            return false;
+        }
+
+        if (_project.HasProject)
+        {
+            _scene.Messages.Add("warning: reload the area before opening another project.");
+            _projectDialogError = _text.T("project.reloadFirst");
+            return false;
+        }
+
+        return OpenProjectInternal(path);
+    }
+
+    public bool SaveProject(string path)
+    {
+        try
+        {
+            _projectPathInput = _project.Save(_scene, path);
+            _projectDialogError = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException
+            or InvalidDataException
+            or NotSupportedException
+            or UnauthorizedAccessException
+            or ArgumentException)
+        {
+            string message = $"project save failed: {ex.Message}";
+            _scene.Messages.Add($"error: {message}");
+            _projectDialogError = message;
+            return false;
+        }
+    }
+
+    private bool OpenProjectInternal(string path)
+    {
+        try
+        {
+            _project.Open(_scene, _plantCells, path);
+            _editSession.ResetBaseline();
+            EnsureSceneIndexes();
+            _projectPathInput = _project.ProjectPath ?? DefaultProjectPath(_scene.AreaName);
+            _projectDialogError = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException
+            or InvalidDataException
+            or NotSupportedException
+            or UnauthorizedAccessException
+            or ArgumentException)
+        {
+            _project.Reset(_scene);
+            _editSession.ResetBaseline();
+            _projectPathInput = DefaultProjectPath(_scene.AreaName);
+            string message = $"project open failed: {ex.Message}";
+            _scene.Messages.Add($"error: {message}");
+            _projectDialogError = message;
+            return false;
+        }
+    }
+
+    private void CloseProject()
+    {
+        if (_project.IsDirty)
+        {
+            _scene.Messages.Add(
+                "warning: save or discard the current edits before closing the project.");
+            return;
+        }
+
+        string? path = _project.ProjectPath;
+        _project.DetachProject(_scene);
+        _projectPathInput = DefaultProjectPath(_scene.AreaName);
+        _scene.Messages.Add($"project: closed '{path}'.");
+    }
+
+    private void SaveProjectFromMenu()
+    {
+        if (_project.ProjectPath is string path)
+        {
+            SaveProject(path);
+        }
+        else
+        {
+            BeginSaveProjectDialog();
+        }
+    }
+
+    private void BeginOpenProjectDialog()
+    {
+        _projectPathInput = _project.ProjectPath ?? DefaultProjectPath(_scene.AreaName);
+        _projectDialogError = string.Empty;
+        _openProjectPopup = true;
+    }
+
+    private void BeginSaveProjectDialog()
+    {
+        if (string.IsNullOrWhiteSpace(_projectPathInput))
+        {
+            _projectPathInput = DefaultProjectPath(_scene.AreaName);
+        }
+
+        _projectDialogError = string.Empty;
+        _saveProjectAsPopup = true;
+    }
+
+    private static string DefaultProjectPath(string area) =>
+        Path.Combine("analysis", "projects", area + EditorProject.Extension);
+
+    private void DrawProjectSection()
+    {
+        ImGui.Separator();
+        ImGui.TextDisabled(_text.T("project.file"));
+        ImGui.TextWrapped(_project.ProjectPath ?? _text.T("project.none"));
+
+        ImGui.TextDisabled(_text.T("project.state"));
+        ImGui.SameLine(150f * EditorTheme.UiScale);
+        ImGui.TextColored(
+            _project.IsDirty ? EditorTheme.Warning : EditorTheme.TextDisabled,
+            _text.T(_project.IsDirty ? "project.state.modified" : "project.state.clean"));
+
+        EditorProject baseline = _project.Baseline;
+        DrawKeyValue(
+            _text.T("project.files"),
+            baseline.FileCount.ToString(CultureInfo.InvariantCulture));
+        DrawKeyValue(
+            _text.T("project.modified"),
+            baseline.ModifiedCount.ToString(CultureInfo.InvariantCulture));
+        DrawKeyValue(
+            _text.T("project.added"),
+            baseline.AddedCount.ToString(CultureInfo.InvariantCulture));
+        DrawKeyValue(
+            _text.T("project.synthetic"),
+            baseline.SyntheticFileCount.ToString(CultureInfo.InvariantCulture));
+
+        ImGui.SetNextItemWidth(-1f);
+        ImGui.InputTextWithHint(
+            "##projectPath",
+            _text.T("project.pathHint"),
+            ref _projectPathInput,
+            512);
+        float buttonWidth = MathF.Max(
+            1f,
+            (ImGui.GetContentRegionAvail().X - (4f * EditorTheme.UiScale)) * 0.5f);
+        if (ImGui.Button(_text.T("project.save"), new Vector2(buttonWidth, 0f)))
+        {
+            SaveProject(_projectPathInput);
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button(_text.T("project.load"), new Vector2(buttonWidth, 0f)))
+        {
+            OpenProject(_projectPathInput);
+        }
+    }
+
+    private void DrawProjectDialogs()
+    {
+        string openId = _text.T("project.openTitle") + OpenProjectPopupSuffix;
+        string saveId = _text.T("project.saveAsTitle") + SaveProjectPopupSuffix;
+        if (_openProjectPopup)
+        {
+            ImGui.OpenPopup(openId);
+            _openProjectPopup = false;
+        }
+
+        if (ImGui.BeginPopupModal(openId, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            DrawProjectPathDialog(open: true);
+            ImGui.EndPopup();
+        }
+
+        if (_saveProjectAsPopup)
+        {
+            ImGui.OpenPopup(saveId);
+            _saveProjectAsPopup = false;
+        }
+
+        if (ImGui.BeginPopupModal(saveId, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            DrawProjectPathDialog(open: false);
+            ImGui.EndPopup();
+        }
+    }
+
+    private void DrawProjectPathDialog(bool open)
+    {
+        ImGui.TextDisabled(open ? _text.T("project.openHint") : _text.T("project.saveHint"));
+        ImGui.SetNextItemWidth(560f * EditorTheme.UiScale);
+        ImGui.InputText("##projectDialogPath", ref _projectPathInput, 512);
+
+        if (!string.IsNullOrEmpty(_projectDialogError))
+        {
+            ImGui.TextColored(EditorTheme.Error, _projectDialogError);
+        }
+
+        ImGui.Separator();
+        bool confirmed = ImGui.Button(open ? _text.T("project.open") : _text.T("project.save"));
+        ImGui.SameLine();
+        bool cancelled = ImGui.Button(_text.T("project.cancel"));
+        if (confirmed)
+        {
+            bool success = open ? OpenProject(_projectPathInput) : SaveProject(_projectPathInput);
+            if (success)
+            {
+                _projectDialogError = string.Empty;
+                ImGui.CloseCurrentPopup();
+            }
+        }
+        else if (cancelled)
+        {
+            _projectDialogError = string.Empty;
+            ImGui.CloseCurrentPopup();
+        }
+    }
 
     private void DrawProject()
     {
@@ -63,6 +296,7 @@ public sealed partial class EditorShell
         DrawKeyValue(_text.T("project.instances"), _scene.Instances.Count.ToString("N0", CultureInfo.InvariantCulture));
         DrawKeyValue(_text.T("project.textures"), _scene.Textures.Count.ToString(CultureInfo.InvariantCulture));
         DrawKeyValue(_text.T("project.warnings"), WarningCount().ToString(CultureInfo.InvariantCulture));
+        DrawProjectSection();
 
         if (_scene.Terrain is not null)
         {

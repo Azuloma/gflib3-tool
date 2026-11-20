@@ -192,6 +192,18 @@ public sealed class PlantEditSession
         return sceneIndex;
     }
 
+    /// <summary>
+    /// Clears history and re-bases dirty tracking on the current matrices, for
+    /// example after loading a project onto a freshly loaded scene.
+    /// </summary>
+    public void ResetBaseline()
+    {
+        _history.Clear();
+        _position = 0;
+        _originalMatrices.Clear();
+        _addedInstances.Clear();
+    }
+
     public bool Undo()
     {
         if (!CanUndo)

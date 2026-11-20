@@ -134,6 +134,7 @@ public sealed partial class EditorShell
         try
         {
             int index = _editSession.AddInstance(file, matrix);
+            _project.MarkEdited();
             _placeTargetFile = file;
             _manualPlaceTarget = file;
             _placeTargetPending = false;

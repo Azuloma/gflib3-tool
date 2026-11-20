@@ -40,6 +40,7 @@ internal sealed class RenderApp : IDisposable
     private int _frame;
     private bool _screenshotWritten;
     private bool _duplicateApplied;
+    private bool _projectSaved;
     private bool _disposed;
     private IntPtr _layoutIniPath;
     private string _status = string.Empty;
@@ -121,6 +122,11 @@ internal sealed class RenderApp : IDisposable
             !_options.NoScene);
         _framebuffer = new SceneFramebuffer(_gl);
         _shell = new EditorShell(_text, _scene, _catalog, !hasSavedLayout);
+        if (_options.ProjectPath is string projectPath && !_shell.OpenProject(projectPath))
+        {
+            Console.Error.WriteLine($"error: failed to open project '{projectPath}'.");
+        }
+
         if (_options.SelectInstance is int selectIndex && !_shell.SelectPlantInstance(selectIndex))
         {
             Console.Error.WriteLine(
@@ -173,6 +179,22 @@ internal sealed class RenderApp : IDisposable
             }
         }
 
+        int projectSaveFrame = duplicateFrame + 1;
+        if (_options.SaveProjectPath is string savePath
+            && _frame >= projectSaveFrame
+            && !_projectSaved)
+        {
+            _projectSaved = true;
+            if (_shell.SaveProject(savePath))
+            {
+                Console.WriteLine($"saved project: {Path.GetFullPath(savePath)}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"error: failed to save project '{savePath}'.");
+            }
+        }
+
         var frame = new UiFrameContext
         {
             Camera = _camera,
@@ -182,6 +204,7 @@ internal sealed class RenderApp : IDisposable
             Status = _status,
         };
         _shell.Draw(frame);
+        UpdateWindowTitle();
 
         bool reloadAttempted = false;
         if (_shell.TakePendingLoad() is SceneSelection request)
@@ -347,10 +370,24 @@ internal sealed class RenderApp : IDisposable
         return index >= 0 ? _catalog.ModelPacks[index] : _scene.ModelPackName;
     }
 
+    private void UpdateWindowTitle()
+    {
+        string title = _text.T("app.title");
+        if (_shell!.HasUnsavedChanges)
+        {
+            title += " *";
+        }
+
+        if (!string.Equals(_window!.Title, title, StringComparison.Ordinal))
+        {
+            _window.Title = title;
+        }
+    }
+
     private void ReloadScene(SceneSelection request)
     {
         _status = _text.T("app.status.loading");
-        int discardedInstances = _shell?.DirtyInstanceCount ?? 0;
+        int discardedInstances = _shell?.PendingChangeCount ?? 0;
         try
         {
             FieldScene scene = FieldSceneLoader.Load(

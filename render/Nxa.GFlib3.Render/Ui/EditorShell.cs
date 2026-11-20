@@ -20,6 +20,11 @@ public sealed partial class EditorShell
 
     private FieldScene _scene;
     private PlantEditSession _editSession;
+    private ProjectSession _project;
+    private string _projectPathInput = string.Empty;
+    private bool _openProjectPopup;
+    private bool _saveProjectAsPopup;
+    private string _projectDialogError = string.Empty;
     private bool _showAbout;
     private bool _showControls;
     private bool _layoutPending;
@@ -49,6 +54,8 @@ public sealed partial class EditorShell
         _scene = scene;
         _catalog = catalog;
         _editSession = new PlantEditSession(scene);
+        _project = new ProjectSession(scene);
+        _projectPathInput = DefaultProjectPath(scene.AreaName);
         _plantCells = CreatePlantCellCatalog(scene);
         _layoutPending = buildDefaultLayout;
         BuildSceneIndexes();
@@ -93,8 +100,12 @@ public sealed partial class EditorShell
 
     public void SetScene(FieldScene scene)
     {
+        string? previousPath = _project.ProjectPath;
+        string? previousArea = _project.Baseline.Area;
+        string? previousModel = _project.Baseline.ModelPack;
         _scene = scene;
         _editSession = new PlantEditSession(scene);
+        _project = new ProjectSession(scene);
         _plantCells = CreatePlantCellCatalog(scene);
         _drag = null;
         _hoveredAxis = GizmoAxis.None;
@@ -102,6 +113,22 @@ public sealed partial class EditorShell
         ResetPlacementState();
         _consoleClearedAt = 0;
         _consoleLastCount = 0;
+
+        if (previousPath is not null)
+        {
+            if (string.Equals(previousArea, scene.AreaName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(previousModel, scene.ModelPackName, StringComparison.OrdinalIgnoreCase))
+            {
+                OpenProjectInternal(previousPath);
+            }
+            else
+            {
+                scene.Messages.Add(
+                    $"warning: project '{previousPath}' was closed because the area or model pack changed.");
+            }
+        }
+
+        _projectPathInput = _project.ProjectPath ?? DefaultProjectPath(scene.AreaName);
         BuildSceneIndexes();
         SyncPackSelection();
     }
@@ -147,6 +174,7 @@ public sealed partial class EditorShell
         DrawScene(frame);
         DrawStatusBar(frame);
         DrawAbout();
+        DrawProjectDialogs();
     }
 
     private void DrawMenuBar()
@@ -158,8 +186,33 @@ public sealed partial class EditorShell
 
         if (ImGui.BeginMenu(_text.T("menu.file")))
         {
+            if (ImGui.MenuItem(_text.T("menu.file.openProject"), "Ctrl+O"))
+            {
+                BeginOpenProjectDialog();
+            }
+
+            if (ImGui.MenuItem(_text.T("menu.file.saveProject"), "Ctrl+S"))
+            {
+                SaveProjectFromMenu();
+            }
+
+            if (ImGui.MenuItem(_text.T("menu.file.saveProjectAs"), "Ctrl+Shift+S"))
+            {
+                BeginSaveProjectDialog();
+            }
+
+            if (ImGui.MenuItem(
+                    _text.T("menu.file.closeProject"),
+                    null,
+                    false,
+                    _project.HasProject))
+            {
+                CloseProject();
+            }
+
+            ImGui.Separator();
             ImGui.BeginDisabled();
-            ImGui.MenuItem(_text.T("menu.file.open"), "Ctrl+O");
+            ImGui.MenuItem(_text.T("menu.file.open"), null);
             ImGui.EndDisabled();
             ImGui.Separator();
             if (ImGui.MenuItem(_text.T("menu.file.exit")))

@@ -2,6 +2,7 @@
 // Copyright 2026 the NXAevora Projects
 
 using Nxa.GFlib3.Render;
+using Nxa.GFlib3.Render.Editing;
 using Nxa.GFlib3.Render.Scene;
 
 AppOptions options;
@@ -32,13 +33,63 @@ catch (Exception ex) when (ex is InvalidOperationException or DirectoryNotFoundE
     return 1;
 }
 
+EditorProject? project = null;
+if (options.ProjectPath is string projectPath)
+{
+    try
+    {
+        project = EditorProject.Read(projectPath);
+    }
+    catch (Exception ex) when (ex is IOException
+        or InvalidDataException
+        or NotSupportedException
+        or UnauthorizedAccessException
+        or ArgumentException)
+    {
+        Console.Error.WriteLine($"error: failed to open project '{projectPath}': {ex.Message}");
+        return 1;
+    }
+}
+
+string area = options.Area;
+string modelPack = options.ModelPack;
+if (project is not null)
+{
+    if (options.AreaSpecified
+        && !string.Equals(options.Area, project.Area, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine(
+            $"error: --area '{options.Area}' does not match project area '{project.Area}'.");
+        return 1;
+    }
+
+    if (options.ModelPackSpecified
+        && !string.Equals(options.ModelPack, project.ModelPack, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine(
+            $"error: --model '{options.ModelPack}' does not match project model pack "
+            + $"'{project.ModelPack}'.");
+        return 1;
+    }
+
+    if (!options.AreaSpecified)
+    {
+        area = project.Area;
+    }
+
+    if (!options.ModelPackSpecified)
+    {
+        modelPack = project.ModelPack;
+    }
+}
+
 SceneCatalog catalog = SceneCatalog.Discover(dumpRoot);
 
 FieldScene scene;
 try
 {
-    Console.WriteLine($"Loading {options.Area} with model pack {options.ModelPack}...");
-    scene = FieldSceneLoader.Load(dumpRoot, options.Area, options.ModelPack, options.MeshFilter, options.TerrainStride, options.TerrainTileScale);
+    Console.WriteLine($"Loading {area} with model pack {modelPack}...");
+    scene = FieldSceneLoader.Load(dumpRoot, area, modelPack, options.MeshFilter, options.TerrainStride, options.TerrainTileScale);
 }
 catch (Exception ex) when (ex is IOException
     or InvalidDataException
@@ -134,6 +185,8 @@ static void PrintHelp()
           --area <name>       Terrain pack, e.g. ha_area00
           --model <name>      Model pack inside bin/field/model/pack
           --mesh <text>       Load the first model whose mesh/material name contains text
+          --project <path>    Open a .gfproj project after loading its area
+          --save-project <path> Diagnostic: save the project after startup actions
           --lang <en|ja>      UI language
           --load-check        Load the area and print counts, then exit
           --smoke-test        Render 90 frames, then exit
@@ -160,6 +213,7 @@ static void PrintHelp()
           LMB select vegetation, 1-4 select/move/rotate/scale
           5 place vegetation, Ctrl+D duplicate
           Ctrl+Z undo, Ctrl+Y redo, Esc cancel drag
+          Ctrl+S save project, Ctrl+O open project
         """);
 }
 

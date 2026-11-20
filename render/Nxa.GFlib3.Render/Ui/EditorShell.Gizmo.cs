@@ -34,7 +34,7 @@ public sealed partial class EditorShell
 
     public int DirtyInstanceCount => _editSession.DirtyCount;
 
-    public bool HasEdits => _editSession.DirtyCount > 0;
+    public bool HasEdits => _project.IsDirty;
 
     public bool SelectPlantInstance(int index)
     {
@@ -78,6 +78,30 @@ public sealed partial class EditorShell
 
         if (!io.KeyCtrl)
         {
+            return;
+        }
+
+        if (ImGui.IsKeyPressed(ImGuiKey.S, false))
+        {
+            if (io.KeyShift)
+            {
+                BeginSaveProjectDialog();
+            }
+            else if (_project.ProjectPath is string path)
+            {
+                SaveProject(path);
+            }
+            else
+            {
+                BeginSaveProjectDialog();
+            }
+
+            return;
+        }
+
+        if (ImGui.IsKeyPressed(ImGuiKey.O, false))
+        {
+            BeginOpenProjectDialog();
             return;
         }
 
@@ -134,6 +158,7 @@ public sealed partial class EditorShell
         {
             _editSession.Undo();
             EnsureSceneIndexes();
+            _project.RefreshDirty(_scene);
         }
     }
 
@@ -143,6 +168,7 @@ public sealed partial class EditorShell
         {
             _editSession.Redo();
             EnsureSceneIndexes();
+            _project.RefreshDirty(_scene);
         }
     }
 
@@ -151,6 +177,7 @@ public sealed partial class EditorShell
         if (_drag is GizmoDrag drag)
         {
             _editSession.SetMatrix(drag.InstanceIndex, drag.StartMatrix);
+            _project.RefreshDirty(_scene);
         }
 
         _drag = null;
@@ -198,6 +225,7 @@ public sealed partial class EditorShell
                 }
 
                 _drag = null;
+                _project.RefreshDirty(_scene);
                 return true;
             }
 
@@ -337,6 +365,7 @@ public sealed partial class EditorShell
         if (_editSession.GetMatrix(drag.InstanceIndex) != matrix)
         {
             _editSession.SetMatrix(drag.InstanceIndex, matrix);
+            _project.MarkEdited();
             drag.Changed = true;
         }
     }

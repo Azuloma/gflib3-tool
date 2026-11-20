@@ -18,6 +18,16 @@ public sealed class AppOptions
 
     public string ModelPack { get; private set; } = DefaultModel;
 
+    public bool AreaSpecified { get; private set; }
+
+    public bool ModelPackSpecified { get; private set; }
+
+    /// <summary>Project loaded after the area is ready.</summary>
+    public string? ProjectPath { get; private set; }
+
+    /// <summary>Diagnostic: write the current project after startup actions.</summary>
+    public string? SaveProjectPath { get; private set; }
+
     public string? MeshFilter { get; private set; }
 
     public string Language { get; private set; } = "en";
@@ -80,9 +90,17 @@ public sealed class AppOptions
                     break;
                 case "--area" when i + 1 < args.Length:
                     options.Area = args[++i];
+                    options.AreaSpecified = true;
                     break;
                 case "--model" when i + 1 < args.Length:
                     options.ModelPack = args[++i];
+                    options.ModelPackSpecified = true;
+                    break;
+                case "--project" when i + 1 < args.Length:
+                    options.ProjectPath = args[++i];
+                    break;
+                case "--save-project" when i + 1 < args.Length:
+                    options.SaveProjectPath = args[++i];
                     break;
                 case "--mesh" when i + 1 < args.Length:
                     options.MeshFilter = args[++i];
@@ -208,6 +226,16 @@ public sealed class AppOptions
         if (options.ReloadModel is not null && options.ReloadArea is null)
         {
             throw new ArgumentException("--reload-model requires --reload-area.");
+        }
+
+        if (options.ProjectPath is not null && string.IsNullOrWhiteSpace(options.ProjectPath))
+        {
+            throw new ArgumentException("--project requires a path.");
+        }
+
+        if (options.SaveProjectPath is not null && string.IsNullOrWhiteSpace(options.SaveProjectPath))
+        {
+            throw new ArgumentException("--save-project requires a path.");
         }
 
         return options;
