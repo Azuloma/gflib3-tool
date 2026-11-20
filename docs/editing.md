@@ -1,8 +1,8 @@
 # Editing
 
 Stage 5 edits vegetation placement (`.trins` instances) non-destructively. The
-dump and its archives are never written; edits live in the loaded `FieldScene`
-and in an undo history for the session.
+dump and its archives are never written; edits live in the loaded `FieldScene`,
+in a session undo history, and in an optional `.gfproj` project of diffs.
 
 ## Scope
 
@@ -12,9 +12,11 @@ tool and duplication of the selected instance. Both append a matrix to an
 existing `.trins` file through `PlantEditSession.AddInstance`; undo and redo
 remain session-local.
 
-Multi-select, new terrain cells, collision updates, project persistence, and
-RomFS export belong to later steps. Transform fields in the Inspector stay
-read-only; the gizmo and the two add actions are the only edits.
+Step 4 adds project persistence: saving and loading per-area diffs, synthetic
+`.trins` identities, dirty tracking, and reload reapplication. Step 3 added the
+16×16 terrain cells and synthetic in-memory files. Multi-select, collision
+updates, and RomFS export belong to later steps. Transform fields in the
+Inspector stay read-only; the gizmo and the two add actions are the only edits.
 
 ## Placement target
 
@@ -157,20 +159,32 @@ Stage 4.
 - Adding, undoing, or redoing an add rebuilds the Hierarchy instance index. When
   undoing removes the selected added instance, the selection falls back to its
   plant model and keeps the current placement target, so Place stays usable.
-- Reloading an area creates a new session and reports how many instances still
-  differ from their original matrices. Added instances count as dirty; undone
-  edits do not count.
+- Reloading an area creates a new session. Unsaved project changes are reported
+  and discarded; a saved project for the same area is reopened automatically.
+  Changing area or model pack closes the active project.
+
+## Project persistence
+
+`ProjectScene` captures only matrices that differ from `OriginalMatrix`, the
+append order, and synthetic file cells; `ProjectSession` owns the active path,
+the normalized JSON baseline, and dirty state. See `project.md` for the file
+schema, conflict rules, and reload behavior. `Ctrl+S` saves, `Ctrl+O` opens, and
+the File menu exposes save-as and close. The default save path is
+`analysis/projects/<area>.gfproj`, which is gitignored.
 
 ## Limitations
 
-- Edits are memory-only until the project format and RomFS export exist.
-- Missing cells are synthesized in memory. Export must write the new `.trins`
-  and add its path to the terrain manifest.
+- Edits are memory-only until saved to a `.gfproj`; export to a RomFS overlay is
+  still Step 5 work.
+- Missing cells are synthesized in memory and stored in the project. Export must
+  write the new `.trins` and add its path to the terrain manifest.
 - New instances are visual-only until collision generation is understood.
 - In-game cell streaming behavior is still unknown.
 - No transform snapping, pivot modes, or numeric Inspector input.
 - Multi-select and box-select are not implemented.
 - Animation, collision, and streaming data are not updated.
-- A reload always discards the session; there is no save prompt yet.
+- A reload discards unsaved edits; there is no modal save prompt yet.
+- A project cannot be merged into a scene that already has appended instances;
+  reload the area first.
 - The placement preview appears one frame behind the cursor because the scene
   render runs before ImGui input for the current frame.

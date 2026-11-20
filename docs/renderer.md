@@ -32,6 +32,8 @@ Options:
 | `--area <name>` | Terrain pack name, default `ha_area00` |
 | `--model <name>` | Model pack inside `archive/field/model/pack`, default `ha_area00_s02` |
 | `--mesh <text>` | Load the first TRMDL whose mesh/material name contains `text` |
+| `--project <path>` | Open a `.gfproj` after loading its area; supplies area/model defaults |
+| `--save-project <path>` | Diagnostic: save the current project after startup actions |
 | `--lang <en\|ja>` | UI language |
 | `--load-check` | Load the area, print counts and bounds, then exit |
 | `--smoke-test` | Render 90 frames, then exit |

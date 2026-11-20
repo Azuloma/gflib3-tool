@@ -18,6 +18,7 @@ holds the durable notes; `analysis/` remains gitignored scratch space.
 | [renderer.md](renderer.md) | Field viewer: terrain, room, scene placement, vegetation, UI shell, limitations |
 | [ui.md](ui.md) | Editor shell: Unity-style layout, palette, metrics, icons, docking |
 | [editing.md](editing.md) | Stage 5 editing: picking, gizmo, transform convention, undo |
+| [project.md](project.md) | Editor project (`.gfproj`): per-area diffs, validation, dirty state, reload |
 | [scene-layout.md](scene-layout.md) | Resident scene schema and background model placement (verified on the dump) |
 
 ## Related files
